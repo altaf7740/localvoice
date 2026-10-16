@@ -27,7 +27,7 @@ class MenuBarApp(rumps.App):
                 item.state = (engine, voice) == resolve_voice(cfg)
                 self.voice_menu.add(item)
         self.speed_menu = rumps.MenuItem("Speed")
-        for speed in SPEEDS:
+        for speed in sorted({*SPEEDS, cfg.speed}):  # include a custom SPEED= so it shows as ticked
             item = rumps.MenuItem(f"{speed}×", callback=self.choose_speed)
             item.state = speed == cfg.speed
             self.speed_menu.add(item)

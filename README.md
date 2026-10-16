@@ -61,6 +61,19 @@ make start
 Try it without the hotkey: `make say TEXT="Kal ki meeting mein timeline discuss karni hai"`.
 Run `make` to list every target.
 
+### Speed
+
+`SPEED` (0.5–2.0, default 1.1) and `STEPS` (Voxtral flow-matching steps, 2–8, default 6) override
+`~/.localvoice.json` for one run:
+
+```sh
+make start SPEED=1.25
+make say SPEED=1.5 STEPS=4 TEXT="Main abhi busy hoon, baad mein call karta hoon."
+```
+
+The menu's Speed submenu changes it while running and saves it. Voxtral keeps up with playback up to
+~1.4× at 6 steps and ~1.8× at 4; above that, lower `STEPS` or speech will have gaps.
+
 Settings live in `~/.localvoice.json` (voice and speed are also in the menu); e.g.
 `{"speed": 1.25, "hotkey": "cmd_r", "transliterate_llm": false, "output_device": "External Headphones"}`.
 

@@ -1,3 +1,4 @@
+import argparse
 import json
 import platform
 import sys
@@ -45,12 +46,12 @@ class Config:
     output_device: str = ""
 
     @classmethod
-    def load(cls) -> "Config":
-        if CONFIG_PATH.exists():
-            data = json.loads(CONFIG_PATH.read_text())
-            known = {k: v for k, v in data.items() if k in cls.__dataclass_fields__}
-            return cls(**known)
-        return cls()
+    def load(cls, **overrides) -> "Config":
+        """Defaults, then ~/.localvoice.json, then `overrides` that aren't None (command-line flags)."""
+        data = json.loads(CONFIG_PATH.read_text()) if CONFIG_PATH.exists() else {}
+        known = {k: v for k, v in data.items() if k in cls.__dataclass_fields__}
+        known.update({k: v for k, v in overrides.items() if v is not None})
+        return cls(**known)
 
     def save(self, *keys: str):
         """Persist the given fields to ~/.localvoice.json, keeping whatever else is in the file."""
@@ -58,3 +59,23 @@ class Config:
         for key in keys:
             data[key] = getattr(self, key)
         CONFIG_PATH.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+
+def add_run_args(parser: argparse.ArgumentParser):
+    """Per-run overrides shared by `make start` and `make say` (SPEED=… STEPS=…)."""
+    parser.add_argument("--speed", type=_speed, help="speaking speed, 0.5–2.0 (e.g. 1.25)")
+    parser.add_argument("--steps", type=_steps, dest="voxtral_steps", help="Voxtral flow-matching steps, 2–8")
+
+
+def _speed(value: str) -> float:
+    speed = float(value)
+    if not 0.5 <= speed <= 2.0:
+        raise argparse.ArgumentTypeError(f"speed must be between 0.5 and 2.0, got {value}")
+    return speed
+
+
+def _steps(value: str) -> int:
+    steps = int(value)
+    if not 2 <= steps <= 8:
+        raise argparse.ArgumentTypeError(f"steps must be between 2 and 8, got {value}")
+    return steps

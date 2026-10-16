@@ -1,12 +1,16 @@
 """LocalVoice entry point: menu-bar app on macOS, system tray elsewhere."""
 
+import argparse
 import sys
 
-from .core.config.settings import Config
+from .core.config.settings import Config, add_run_args
 
 
-def main():
-    cfg = Config.load()
+def main(argv: list[str] | None = None):
+    parser = argparse.ArgumentParser(prog="localvoice", description="Select text, tap the hotkey, hear it.")
+    add_run_args(parser)
+    args = parser.parse_args(argv)
+    cfg = Config.load(speed=args.speed, voxtral_steps=args.voxtral_steps)
     if sys.platform == "darwin":
         from .modules.ui.menubar import run
     else:

@@ -1,13 +1,13 @@
 """Speak text from the command line, without the hotkey or menu bar.
 
-Usage: make say TEXT="Kal ki meeting mein timeline discuss karni hai"
-   or: uv run python -m scripts.say "<text>"
+Usage: make say TEXT="Kal ki meeting mein timeline discuss karni hai" [SPEED=1.25] [STEPS=4]
+   or: uv run python -m scripts.say [--speed 1.25] [--steps 4] "<text>"
 """
 
-import sys
+import argparse
 import time
 
-from src.core.config.settings import Config
+from src.core.config.settings import Config, add_run_args
 from src.modules.transliterate import services as transliterate
 from src.modules.tts import services as tts
 from src.shared.audio import Player
@@ -15,10 +15,14 @@ from src.shared.text import split_sentences
 
 
 def main():
-    text = " ".join(sys.argv[1:]).strip()
+    parser = argparse.ArgumentParser(prog="say", description="Speak text with the configured voice.")
+    parser.add_argument("text", nargs="*")
+    add_run_args(parser)
+    args = parser.parse_args()
+    text = " ".join(args.text).strip()
     if not text:
-        sys.exit(__doc__)
-    cfg = Config.load()
+        parser.error('no text given (make say TEXT="...")')
+    cfg = Config.load(speed=args.speed, voxtral_steps=args.voxtral_steps)
     tts.warmup(cfg)
     player = Player()
     player.start(cfg.output_device)

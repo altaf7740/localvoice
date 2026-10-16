@@ -1,6 +1,10 @@
 .PHONY: help install model start stop status restart say eval test lint lint-fix check clean
 
 TRANSLITERATE_MODEL := qwen2.5:7b-instruct
+# Optional per-run overrides: make start SPEED=1.25 STEPS=4 (they beat ~/.localvoice.json)
+RUN_FLAGS = $(if $(SPEED),--speed $(SPEED)) $(if $(STEPS),--steps $(STEPS))
+# this repo's interpreter only: LocalFlow and other projects also run "python -m src.main"
+APP_PROCESS := $(CURDIR)/.venv/bin/python.* -m src.main
 
 # Colors
 C := \033[36m
@@ -15,11 +19,11 @@ help:
 	@echo "  $(G)model$(R)        Download Voxtral + Kokoro (male voices) and pull the Ollama transliteration model"
 	@echo ""
 	@echo "$(C)App:$(R)"
-	@echo "  $(G)start$(R)        Run LocalVoice (menu bar on macOS, tray on Windows/Linux)"
+	@echo "  $(G)start$(R)        Run LocalVoice (menu bar on macOS, tray on Windows/Linux) [SPEED=1.25 STEPS=4]"
 	@echo "  $(G)stop$(R)         Stop a running LocalVoice"
 	@echo "  $(G)status$(R)       Check if LocalVoice is running"
 	@echo "  $(G)restart$(R)      Stop, then start"
-	@echo "  $(G)say$(R)          Speak TEXT=\"...\" from the terminal"
+	@echo "  $(G)say$(R)          Speak TEXT=\"...\" from the terminal [SPEED=1.25 STEPS=4]"
 	@echo ""
 	@echo "$(C)Evaluation:$(R)"
 	@echo "  $(G)eval$(R)         Whisper round-trip CER + latency on src/static/eval (ARGS=\"--llm --save\")"
@@ -42,18 +46,18 @@ model:
 		|| echo "Ollama not found: AI transliteration is off until you install it (the lexicon still works)"
 
 start:
-	uv run python -m src.main
+	uv run python -m src.main $(RUN_FLAGS)
 
 stop:
-	@pkill -f "python -m src.main" 2>/dev/null && echo "LocalVoice stopped" || echo "LocalVoice not running"
+	@pkill -f "$(APP_PROCESS)" 2>/dev/null && echo "LocalVoice stopped" || echo "LocalVoice not running"
 
 status:
-	@pgrep -f "python -m src.main" > /dev/null && echo "LocalVoice is running" || echo "LocalVoice is NOT running"
+	@pgrep -f "$(APP_PROCESS)" > /dev/null && echo "LocalVoice is running" || echo "LocalVoice is NOT running"
 
 restart: stop start
 
 say:
-	uv run python -m scripts.say "$(TEXT)"
+	uv run python -m scripts.say $(RUN_FLAGS) "$(TEXT)"
 
 eval:
 	uv run --group eval python -m scripts.run_eval $(ARGS)

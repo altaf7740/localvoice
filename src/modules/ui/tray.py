@@ -82,7 +82,7 @@ def run(cfg: Config):
                         pystray.MenuItem(
                             f"{s}×", set_field("speed", s), checked=lambda _, s=s: cfg.speed == s, radio=True
                         )
-                        for s in SPEEDS
+                        for s in sorted({*SPEEDS, cfg.speed})  # include a custom SPEED= so it shows as ticked
                     )
                 ),
             ),
