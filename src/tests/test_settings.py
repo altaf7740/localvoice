@@ -1,14 +1,14 @@
 import json
 
 from src.core.config import settings
-from src.core.config.settings import VOICES, Config
+from src.core.config.settings import ENGINE_VOICES, Config
 
 
 def test_defaults_when_no_config_file(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "CONFIG_PATH", tmp_path / "missing.json")
     cfg = Config.load()
-    assert cfg.voice in VOICES
-    assert cfg.speed == 1.0
+    assert cfg.voice in ENGINE_VOICES[cfg.tts_engine]
+    assert cfg.speed == 1.1
     assert cfg.transliterate_llm is True
 
 

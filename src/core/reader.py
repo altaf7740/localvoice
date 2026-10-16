@@ -46,6 +46,15 @@ class Reader:
         self.ready = True
         self.on_state(IDLE)
 
+    def set_voice(self, engine: str, voice: str):
+        """Switch engine/voice and load it now, so the next tap doesn't wait for the model."""
+        self.stop()
+        self.cfg.tts_engine, self.cfg.voice = engine, voice
+        self.cfg.save("tts_engine", "voice")
+        self.ready = False
+        self.on_state(LOADING)
+        threading.Thread(target=self._warmup, daemon=True).start()
+
     def _on_press(self, key):
         # any other key while the hotkey is down means it's being used as a modifier (⌥E etc.)
         self.tapping = key == self.hotkey

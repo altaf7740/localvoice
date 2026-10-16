@@ -23,7 +23,7 @@ class Player:
         self._thread.start()
 
     def feed(self, audio: np.ndarray):
-        self._queue.put(audio)
+        self._queue.put(np.asarray(audio, dtype=np.float32))  # the stream rejects any other dtype
 
     def finish(self):
         """Block until everything fed so far has played (or stop() was called)."""

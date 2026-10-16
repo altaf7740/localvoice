@@ -3,8 +3,9 @@
 import pystray
 from PIL import Image, ImageDraw
 
-from ...core.config.settings import SPEEDS, VOICES, Config
+from ...core.config.settings import ENGINE_VOICES, SPEEDS, Config
 from ...core.reader import IDLE, LOADING, SPEAKING, WORKING, Reader
+from ..tts.services import resolve_voice
 
 COLORS = {LOADING: "#9e9e9e", IDLE: "#2e7d32", WORKING: "#f9a825", SPEAKING: "#1565c0"}
 TOOLTIPS = {
@@ -42,6 +43,9 @@ def run(cfg: Config):
         cfg.transliterate_llm = not cfg.transliterate_llm
         cfg.save("transliterate_llm")
 
+    def set_voice(engine: str, voice: str):
+        return lambda _icon, _item: reader.set_voice(engine, voice)
+
     def set_field(key: str, value):
         def choose(_icon, _item):
             setattr(cfg, key, value)
@@ -60,8 +64,14 @@ def run(cfg: Config):
                 "Voice",
                 pystray.Menu(
                     *(
-                        pystray.MenuItem(v, set_field("voice", v), checked=lambda _, v=v: cfg.voice == v, radio=True)
-                        for v in VOICES
+                        pystray.MenuItem(
+                            f"{e.capitalize()} · {v}",
+                            set_voice(e, v),
+                            checked=lambda _, e=e, v=v: resolve_voice(cfg) == (e, v),
+                            radio=True,
+                        )
+                        for e, voices in ENGINE_VOICES.items()
+                        for v in voices
                     )
                 ),
             ),

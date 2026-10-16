@@ -23,6 +23,8 @@ class _FakeStream:
         return False
 
     def write(self, chunk):
+        if chunk.dtype != np.float32:  # like sounddevice: "dtype mismatch: 'float64' vs 'float32'"
+            raise TypeError(f"dtype mismatch: {chunk.dtype}")
         self.release.wait()
         self.written.append(chunk)
 
@@ -63,3 +65,11 @@ def test_unplugged_device_falls_back_to_default(monkeypatch):
     player.start("AirPods Pro")
     player.finish()
     assert _FakeStream.instances[0].device is None
+
+
+def test_float64_chunks_are_converted(monkeypatch):
+    player = _player(monkeypatch)
+    player.start()
+    player.feed(np.ones(10, dtype=np.float64))
+    player.finish()
+    assert _FakeStream.instances[0].written[0].dtype == np.float32

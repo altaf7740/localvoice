@@ -5,7 +5,7 @@ from pynput import keyboard
 
 from src.core import reader
 from src.core.config.settings import Config
-from src.core.reader import IDLE, SPEAKING, WORKING, Reader
+from src.core.reader import IDLE, LOADING, SPEAKING, WORKING, Reader
 
 
 class FakePlayer:
@@ -101,3 +101,18 @@ def test_taps_ignored_while_loading(monkeypatch):
     _tap(r)
     _join_workers()
     assert results == []
+
+
+def test_set_voice_saves_and_reloads(monkeypatch, tmp_path):
+    from src.core.config import settings
+
+    monkeypatch.setattr(settings, "CONFIG_PATH", tmp_path / "localvoice.json")
+    r, states, results, empty = _make(monkeypatch)
+    warmed = []
+    monkeypatch.setattr(reader.tts, "warmup", lambda cfg: warmed.append((cfg.tts_engine, cfg.voice)))
+    r.set_voice("kokoro", "hm_psi")
+    _join_workers()
+    assert warmed == [("kokoro", "hm_psi")]
+    assert states == [LOADING, IDLE]
+    assert r.ready
+    assert (tmp_path / "localvoice.json").read_text().count("hm_psi") == 1

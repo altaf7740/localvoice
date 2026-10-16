@@ -2,8 +2,9 @@ import threading
 
 import rumps
 
-from ...core.config.settings import SPEEDS, VOICES, Config
+from ...core.config.settings import ENGINE_VOICES, SPEEDS, Config
 from ...core.reader import IDLE, LOADING, SPEAKING, WORKING, Reader
+from ..tts.services import resolve_voice
 
 TITLES = {LOADING: "…", IDLE: "🔈", WORKING: "⏳", SPEAKING: "🔊"}
 NOTHING_SELECTED = "🔇"
@@ -17,10 +18,14 @@ class MenuBarApp(rumps.App):
         self.llm_item = rumps.MenuItem("AI transliteration", callback=self.toggle_llm)
         self.llm_item.state = cfg.transliterate_llm
         self.voice_menu = rumps.MenuItem("Voice")
-        for name in VOICES:
-            item = rumps.MenuItem(name, callback=self.choose_voice)
-            item.state = name == cfg.voice
-            self.voice_menu.add(item)
+        self.voices: dict[str, tuple[str, str]] = {}  # menu title -> (engine, voice)
+        for engine, voices in ENGINE_VOICES.items():
+            for voice in voices:
+                title = f"{engine.capitalize()} · {voice}"
+                self.voices[title] = (engine, voice)
+                item = rumps.MenuItem(title, callback=self.choose_voice)
+                item.state = (engine, voice) == resolve_voice(cfg)
+                self.voice_menu.add(item)
         self.speed_menu = rumps.MenuItem("Speed")
         for speed in SPEEDS:
             item = rumps.MenuItem(f"{speed}×", callback=self.choose_speed)
@@ -50,8 +55,7 @@ class MenuBarApp(rumps.App):
     def choose_voice(self, item):
         for other in self.voice_menu.values():
             other.state = other is item
-        self.cfg.voice = item.title
-        self.cfg.save("voice")
+        self.reader.set_voice(*self.voices[item.title])
 
     def choose_speed(self, item):
         for other in self.speed_menu.values():

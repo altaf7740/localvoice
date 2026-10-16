@@ -8,14 +8,15 @@ dependencies = [
     # ===========================================================================
     # CORE  (src/main.py, src/core/, src/shared/)
     # ===========================================================================
-    "numpy>=2.5.3",                 # Audio buffers
+    "numpy>=2.0",                   # Audio buffers (mistral-common caps it below 2.4)
     "sounddevice>=0.5.6",           # Speaker playback (src/shared/audio.py)
     "pynput>=1.8.2",                # Global hotkey + Ctrl+C on Windows/Linux (src/core/reader.py)
     "requests>=2.34.2",             # Ollama HTTP API (src/modules/transliterate/)
     # ===========================================================================
     # Apple Silicon  (src/modules/tts/)
     # ===========================================================================
-    "mlx-audio>=0.5.9; sys_platform == 'darwin' and platform_machine == 'arm64'",        # Kokoro on Apple GPU
+    "mlx-audio>=0.5.9; sys_platform == 'darwin' and platform_machine == 'arm64'",        # Voxtral + Kokoro on Apple GPU
+    "mistral-common[audio]>=1.12.0; sys_platform == 'darwin' and platform_machine == 'arm64'",  # Voxtral tokenizer
     "misaki>=0.9.4; sys_platform == 'darwin' and platform_machine == 'arm64'",           # Kokoro G2P
     "espeakng-loader>=0.2.4; sys_platform == 'darwin' and platform_machine == 'arm64'",  # Bundled espeak-ng (Hindi G2P)
     "phonemizer-fork>=3.3.2; sys_platform == 'darwin' and platform_machine == 'arm64'",  # espeak-ng bindings

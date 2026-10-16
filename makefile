@@ -12,7 +12,7 @@ help:
 	@echo "$(Y)Usage:$(R) make [target]\n"
 	@echo "$(C)Setup:$(R)"
 	@echo "  $(G)install$(R)      Install dependencies (incl. dev tools)"
-	@echo "  $(G)model$(R)        Download Kokoro-82M + male Hindi voices and pull the Ollama transliteration model"
+	@echo "  $(G)model$(R)        Download Voxtral + Kokoro (male voices) and pull the Ollama transliteration model"
 	@echo ""
 	@echo "$(C)App:$(R)"
 	@echo "  $(G)start$(R)        Run LocalVoice (menu bar on macOS, tray on Windows/Linux)"
