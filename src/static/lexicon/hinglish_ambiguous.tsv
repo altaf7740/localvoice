@@ -1,0 +1,26 @@
+# Roman Hindi words that are also common English, applied only when the text
+# already has a few unambiguous Hindi words (see MIN_HINDI_WORDS).
+main	मैं
+me	में
+to	तो
+hi	ही
+par	पर
+do	दो
+log	लोग
+us	उस
+the	थे
+tab	तब
+sun	सुन
+din	दिन
+mat	मत
+han	हाँ
+is	इस
+in	इन
+char	चार
+kam	कम
+use	उसे
+hue	हुए
+bade	बड़े
+thin	थीं
+mere	मेरे
+teen	तीन
