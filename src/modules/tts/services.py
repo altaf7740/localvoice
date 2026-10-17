@@ -3,10 +3,12 @@ from typing import Iterator
 
 import numpy as np
 
-from ...core.config.settings import APPLE_SILICON, ENGINE_VOICES, Config
+from ...core.config.settings import APPLE_SILICON, ENGINE_VOICES, STATIC_DIR, Config
+from .resample import HalfRate
 from .stretch import TimeStretcher
 
-SAMPLE_RATE = 24000  # both Kokoro and Voxtral
+SAMPLE_RATE = 24000  # Kokoro and Voxtral; VoxCPM2's 48 kHz is halved to match
+VOICES_DIR = STATIC_DIR / "voices"  # per VoxCPM2 voice: a reference clip (.wav) and what it says (.txt)
 KOKORO_LANG = "h"  # Kokoro's Hindi pipeline: espeak-ng "hi" G2P, which also reads Latin-script English
 VOXTRAL_CHUNK = 0.5  # seconds of audio per streamed Voxtral chunk; smaller = sooner first audio
 
@@ -15,6 +17,7 @@ VOXTRAL_CHUNK = 0.5  # seconds of audio per streamed Voxtral chunk; smaller = so
 logging.getLogger("phonemizer").propagate = False
 
 _mlx_models: dict = {}
+_voxcpm2_voices: dict = {}  # voice -> reference clip already run through the model (voxcpm2.prepare_voice)
 _torch_pipeline = None
 
 
@@ -23,7 +26,9 @@ def synthesize(text: str, cfg: Config) -> Iterator[np.ndarray]:
     if not text.strip():
         return
     engine, voice = resolve_voice(cfg)
-    if engine == "voxtral":
+    if engine == "voxcpm2":
+        yield from _synthesize_voxcpm2(text, voice, cfg)
+    elif engine == "voxtral":
         yield from _synthesize_voxtral(text, voice, cfg)
     elif _kokoro_on_mlx(cfg):
         yield from _synthesize_kokoro_mlx(text, voice, cfg)
@@ -52,11 +57,33 @@ def _kokoro_on_mlx(cfg: Config) -> bool:
 
 def _load_mlx(repo: str):
     if repo not in _mlx_models:
+        import mlx.core as mx
         from mlx_audio.tts.utils import load
 
+        # one engine at a time: VoxCPM2 and Voxtral each need 3–6 GB
+        _mlx_models.clear()
+        _voxcpm2_voices.clear()
+        mx.clear_cache()
         _mlx_models[repo] = load(repo)
         print(f"[tts] {repo} on mlx", flush=True)
     return _mlx_models[repo]
+
+
+def _synthesize_voxcpm2(text: str, voice: str, cfg: Config) -> Iterator[np.ndarray]:
+    from . import voxcpm2
+
+    model = _load_mlx(cfg.voxcpm2_model)
+    if voice not in _voxcpm2_voices:
+        transcript = (VOICES_DIR / f"{voice}.txt").read_text().strip()
+        _voxcpm2_voices[voice] = voxcpm2.prepare_voice(model, str(VOICES_DIR / f"{voice}.wav"), transcript)
+    # VoxCPM2 has no speed control either, so stretch it like Voxtral
+    stretcher = TimeStretcher(cfg.speed) if cfg.speed != 1.0 else None
+    halve = HalfRate()
+    for chunk in voxcpm2.stream(model, text, _voxcpm2_voices[voice], cfg.voxcpm2_steps):
+        audio = halve.process(chunk)
+        yield stretcher.process(audio) if stretcher else audio
+    if stretcher:
+        yield stretcher.flush()
 
 
 def _synthesize_voxtral(text: str, voice: str, cfg: Config) -> Iterator[np.ndarray]:

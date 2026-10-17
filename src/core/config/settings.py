@@ -10,22 +10,30 @@ BASE_DIR = Path(__file__).resolve().parents[2]  # src/
 STATIC_DIR = BASE_DIR / "static"
 APPLE_SILICON = sys.platform == "darwin" and platform.machine() == "arm64"
 
-# Male Hindi voices per engine (Kokoro's hf_alpha / hf_beta and Voxtral's hi_female are left out).
-# Voxtral runs on MLX only, so other machines get Kokoro alone.
-ENGINE_VOICES = {"voxtral": ["hi_male"], "kokoro": ["hm_omega", "hm_psi"]}
+# Male voices per engine (Kokoro's hf_alpha / hf_beta and Voxtral's hi_female are left out).
+# VoxCPM2's indian_male is cloned from static/voices/indian_male.wav. VoxCPM2 and Voxtral run on
+# MLX only, so other machines get Kokoro alone.
+ENGINE_VOICES = {"voxcpm2": ["indian_male"], "voxtral": ["hi_male"], "kokoro": ["hm_omega", "hm_psi"]}
 if not APPLE_SILICON:
-    del ENGINE_VOICES["voxtral"]
+    del ENGINE_VOICES["voxcpm2"], ENGINE_VOICES["voxtral"]
+ENGINE_NAMES = {"voxcpm2": "VoxCPM2", "voxtral": "Voxtral", "kokoro": "Kokoro"}  # for menus
 SPEEDS = [0.8, 0.9, 1.0, 1.1, 1.25, 1.5]
 
 
 @dataclass
 class Config:
+    # "voxcpm2": deep Indian male voice, Apache 2.0, ~1.5 s to first audio; only just keeps up
+    #   with 1× playback on an M1 Pro.
     # "voxtral": natural Hinglish, ~0.7 s to first audio, CC BY-NC (non-commercial) weights.
     # "kokoro": flatter but ~0.2 s to first audio, Apache 2.0, runs everywhere.
-    tts_engine: str = "voxtral" if APPLE_SILICON else "kokoro"
-    voice: str = "hi_male" if APPLE_SILICON else "hm_omega"
-    # Kokoro speeds up natively; Voxtral's output is time-stretched (pitch unchanged)
-    speed: float = 1.1
+    tts_engine: str = "voxcpm2" if APPLE_SILICON else "kokoro"
+    voice: str = "indian_male" if APPLE_SILICON else "hm_omega"
+    # Kokoro speeds up natively; VoxCPM2 and Voxtral output is time-stretched (pitch unchanged)
+    speed: float = 1.0
+    voxcpm2_model: str = "mlx-community/VoxCPM2-8bit"
+    # diffusion steps per 0.16 s patch (model default 10). 4 sounds as clean as 10 in Whisper
+    # round-trips and is the most an M1 Pro can run at 1× speed; 3 garbles words.
+    voxcpm2_steps: int = 4
     voxtral_model: str = "mlx-community/Voxtral-4B-TTS-2603-mlx-4bit"
     # flow-matching steps per 80 ms frame (model default 8). On an M1 Pro, 8 only just keeps up
     # with 1× playback; 6 sounds the same and generates fast enough for up to ~1.4×.
@@ -64,7 +72,12 @@ class Config:
 def add_run_args(parser: argparse.ArgumentParser):
     """Per-run overrides shared by `make start` and `make say` (SPEED=… STEPS=…)."""
     parser.add_argument("--speed", type=_speed, help="speaking speed, 0.5–2.0 (e.g. 1.25)")
-    parser.add_argument("--steps", type=_steps, dest="voxtral_steps", help="Voxtral flow-matching steps, 2–8")
+    parser.add_argument("--steps", type=_steps, help="VoxCPM2/Voxtral steps, 2–10: fewer = faster, rougher")
+
+
+def run_overrides(args: argparse.Namespace) -> dict:
+    """Config.load() overrides from add_run_args(); --steps applies to whichever engine is active."""
+    return {"speed": args.speed, "voxcpm2_steps": args.steps, "voxtral_steps": args.steps}
 
 
 def _speed(value: str) -> float:
@@ -76,6 +89,6 @@ def _speed(value: str) -> float:
 
 def _steps(value: str) -> int:
     steps = int(value)
-    if not 2 <= steps <= 8:
-        raise argparse.ArgumentTypeError(f"steps must be between 2 and 8, got {value}")
+    if not 2 <= steps <= 10:
+        raise argparse.ArgumentTypeError(f"steps must be between 2 and 10, got {value}")
     return steps

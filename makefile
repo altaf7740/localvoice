@@ -16,7 +16,7 @@ help:
 	@echo "$(Y)Usage:$(R) make [target]\n"
 	@echo "$(C)Setup:$(R)"
 	@echo "  $(G)install$(R)      Install dependencies (incl. dev tools)"
-	@echo "  $(G)model$(R)        Download Voxtral + Kokoro (male voices) and pull the Ollama transliteration model"
+	@echo "  $(G)model$(R)        Download VoxCPM2 + Voxtral + Kokoro (male voices) and pull the Ollama model"
 	@echo ""
 	@echo "$(C)App:$(R)"
 	@echo "  $(G)start$(R)        Run LocalVoice (menu bar on macOS, tray on Windows/Linux) [SPEED=1.25 STEPS=4]"

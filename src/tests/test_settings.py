@@ -4,14 +4,14 @@ import json
 import pytest
 
 from src.core.config import settings
-from src.core.config.settings import ENGINE_VOICES, Config, add_run_args
+from src.core.config.settings import ENGINE_VOICES, Config, add_run_args, run_overrides
 
 
 def test_defaults_when_no_config_file(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "CONFIG_PATH", tmp_path / "missing.json")
     cfg = Config.load()
     assert cfg.voice in ENGINE_VOICES[cfg.tts_engine]
-    assert cfg.speed == 1.1
+    assert cfg.speed == 1.0
     assert cfg.transliterate_llm is True
 
 
@@ -53,8 +53,16 @@ def _parse(*argv):
 
 def test_run_args():
     args = _parse("--speed", "1.3", "--steps", "4")
-    assert (args.speed, args.voxtral_steps) == (1.3, 4)
-    assert (_parse().speed, _parse().voxtral_steps) == (None, None)
+    assert (args.speed, args.steps) == (1.3, 4)
+    assert (_parse().speed, _parse().steps) == (None, None)
+
+
+def test_steps_flag_applies_to_both_diffusion_engines(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "CONFIG_PATH", tmp_path / "missing.json")
+    cfg = Config.load(**run_overrides(_parse("--steps", "5")))
+    assert (cfg.voxcpm2_steps, cfg.voxtral_steps) == (5, 5)
+    cfg = Config.load(**run_overrides(_parse()))
+    assert (cfg.voxcpm2_steps, cfg.voxtral_steps) == (4, 6)
 
 
 @pytest.mark.parametrize("argv", [("--speed", "3"), ("--speed", "fast"), ("--steps", "1"), ("--steps", "12")])

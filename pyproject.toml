@@ -15,7 +15,8 @@ dependencies = [
     # ===========================================================================
     # Apple Silicon  (src/modules/tts/)
     # ===========================================================================
-    "mlx-audio>=0.5.9; sys_platform == 'darwin' and platform_machine == 'arm64'",        # Voxtral + Kokoro on Apple GPU
+    # pinned: src/modules/tts/voxcpm2.py re-implements VoxCPM2's generation loop on mlx-audio internals
+    "mlx-audio==0.5.9; sys_platform == 'darwin' and platform_machine == 'arm64'",        # VoxCPM2, Voxtral, Kokoro on Apple GPU
     "mistral-common[audio]>=1.12.0; sys_platform == 'darwin' and platform_machine == 'arm64'",  # Voxtral tokenizer
     "misaki>=0.9.4; sys_platform == 'darwin' and platform_machine == 'arm64'",           # Kokoro G2P
     "espeakng-loader>=0.2.4; sys_platform == 'darwin' and platform_machine == 'arm64'",  # Bundled espeak-ng (Hindi G2P)

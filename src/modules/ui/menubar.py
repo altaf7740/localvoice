@@ -2,7 +2,7 @@ import threading
 
 import rumps
 
-from ...core.config.settings import ENGINE_VOICES, SPEEDS, Config
+from ...core.config.settings import ENGINE_NAMES, ENGINE_VOICES, SPEEDS, Config
 from ...core.reader import IDLE, LOADING, SPEAKING, WORKING, Reader
 from ..tts.services import resolve_voice
 
@@ -21,7 +21,7 @@ class MenuBarApp(rumps.App):
         self.voices: dict[str, tuple[str, str]] = {}  # menu title -> (engine, voice)
         for engine, voices in ENGINE_VOICES.items():
             for voice in voices:
-                title = f"{engine.capitalize()} · {voice}"
+                title = f"{ENGINE_NAMES[engine]} · {voice}"
                 self.voices[title] = (engine, voice)
                 item = rumps.MenuItem(title, callback=self.choose_voice)
                 item.state = (engine, voice) == resolve_voice(cfg)

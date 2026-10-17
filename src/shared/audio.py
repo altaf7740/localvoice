@@ -23,7 +23,8 @@ class Player:
         self._thread.start()
 
     def feed(self, audio: np.ndarray):
-        self._queue.put(np.asarray(audio, dtype=np.float32))  # the stream rejects any other dtype
+        # the stream rejects any other dtype, and strided views (e.g. every other sample)
+        self._queue.put(np.ascontiguousarray(audio, dtype=np.float32))
 
     def finish(self):
         """Block until everything fed so far has played (or stop() was called)."""
@@ -38,6 +39,7 @@ class Player:
     def _run(self, device: str):
         if device and device not in output_devices():
             device = ""  # unplugged since it was chosen: fall back to the system default
+        gaps = 0  # times the speaker ran dry waiting for synthesis
         with sd.OutputStream(samplerate=SAMPLE_RATE, channels=1, dtype="float32", device=device or None) as stream:
             while not self._stopped.is_set():
                 chunk = self._queue.get()
@@ -46,7 +48,10 @@ class Player:
                 for i in range(0, len(chunk), BLOCK):
                     if self._stopped.is_set():
                         break
-                    stream.write(chunk[i : i + BLOCK])
+                    if stream.write(chunk[i : i + BLOCK]):  # True when the device underflowed
+                        gaps += 1
+        if gaps > 1:  # the stream opens before the first audio exists, so waiting for it is always one
+            print(f"[audio] {gaps - 1} gap(s): synthesis fell behind playback (lower SPEED or STEPS)", flush=True)
 
 
 def output_devices() -> list[str]:

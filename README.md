@@ -11,32 +11,46 @@ repo's app.
 
 1. **Grab** — ⌘C / Ctrl+C copies the selection, then the previous clipboard is restored.
 2. **Split** — into sentences, so the first one plays while the rest are synthesised.
-3. **Transliterate** — both engines pronounce Hindi best from Devanagari, so Roman Hindi words are
+3. **Transliterate** — the engines pronounce Hindi best from Devanagari, so Roman Hindi words are
    converted ("kal ki meeting" → "कल की meeting") and English words stay in Latin script:
    - `qwen2.5:7b-instruct` via Ollama, when *AI transliteration* is on and Ollama is running;
    - then a built-in lexicon (`src/static/lexicon/`) catches common words the model missed, or does
      the whole job when Ollama is off. Words that are also English ("main", "me", "to") are converted
      only next to Hindi words, so "tell me kya" keeps "me".
-4. **Speak** — streamed to the speakers chunk by chunk, with one of two engines (Voice menu):
-   - **[Voxtral TTS](https://huggingface.co/mistralai/Voxtral-4B-TTS-2603)** `hi_male` (default, Apple Silicon
-     only): Mistral's 4B model, 4-bit on MLX. Natural Hinglish; English words sound English.
+4. **Speak** — streamed to the speakers chunk by chunk, with one of three engines (Voice menu):
+   - **[VoxCPM2](https://huggingface.co/openbmb/VoxCPM2)** `indian_male` (default, Apple Silicon only):
+     OpenBMB's 2B model, 8-bit on MLX. A deep, calm Indian male voice, cloned from
+     `src/static/voices/indian_male.wav` (see [Voices](#voices)).
+   - **[Voxtral TTS](https://huggingface.co/mistralai/Voxtral-4B-TTS-2603)** `hi_male` (Apple Silicon only):
+     Mistral's 4B model, 4-bit on MLX. Natural Hinglish, lighter voice; English words sound English.
    - **[Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M)** `hm_omega` / `hm_psi`: tiny and instant but
      flat; MLX on Apple Silicon, PyTorch (CUDA or CPU) elsewhere.
 
-   Speed (default 1.1×) is native in Kokoro; Voxtral's output is time-stretched with WSOLA, so pitch
-   stays the same.
+   Speed (default 1.0×) is native in Kokoro; VoxCPM2 and Voxtral output is time-stretched with WSOLA,
+   so pitch stays the same.
 
 Nothing leaves the machine.
 
 ## Engines (M1 Pro)
 
-| | Voxtral `hi_male` | Kokoro `hm_omega` |
-|---|---|---|
-| Pronunciation | natural, handles code-mixing | flat; garbles some English ("server restart") |
-| First audio | ~0.6 s | ~0.2 s |
-| Real-time factor | 0.70 (keeps up with playback up to ~1.4×) | 0.07 |
-| Memory | 3.4 GB | < 1 GB |
-| Weights licence | **CC BY-NC 4.0 (non-commercial)** | Apache 2.0 |
+| | VoxCPM2 `indian_male` | Voxtral `hi_male` | Kokoro `hm_omega` |
+|---|---|---|---|
+| Voice | deep (~100 Hz), calm Indian male | Indian male (~130 Hz) | flat Indian male |
+| Pronunciation | natural, handles code-mixing | natural, handles code-mixing | flat; garbles some English ("server restart") |
+| First audio | ~0.9 s | ~0.6 s | ~0.2 s |
+| Real-time factor | 0.84 (only just keeps up at 1×) | 0.70 (keeps up to ~1.4×) | 0.07 |
+| Memory | 6 GB | 3.4 GB | < 1 GB |
+| Download | 3 GB | 2.4 GB | 0.3 GB |
+| Weights licence | Apache 2.0 | **CC BY-NC 4.0 (non-commercial)** | Apache 2.0 |
+
+Only one engine is loaded at a time; switching voices frees the previous model.
+
+VoxCPM2 runs 4 diffusion steps per 0.16 s patch instead of its default 10 (`voxcpm2_steps`): Whisper
+transcripts were as clean as at 10, and 4 is the most an M1 Pro can run at 1× (3 garbles words).
+mlx-audio's VoxCPM2 only returns a sentence once it's fully generated, so `src/modules/tts/voxcpm2.py`
+re-implements its generation loop to decode every ~1 s, and reads the voice's transcript into the
+model once instead of per sentence. It pins `mlx-audio==0.5.9`, whose internals it uses. About one
+sentence in 30 the model doesn't stop on its own; it's cut off at 2 s + 0.7 s per word.
 
 Voxtral runs 6 flow-matching steps per frame instead of its default 8 (`voxtral_steps`): Whisper
 transcripts were identical and it generates ~30% faster, which is what makes faster speeds stutter-free.
@@ -57,7 +71,7 @@ Common to all: install [uv](https://docs.astral.sh/uv/) and, optionally, [Ollama
 
 ```sh
 make install   # uv sync --all-groups
-make model     # download Voxtral + Kokoro and their male voices, ollama pull qwen2.5:7b-instruct
+make model     # download VoxCPM2 + Voxtral + Kokoro and their male voices, ollama pull qwen2.5:7b-instruct
 make start
 ```
 
@@ -66,16 +80,27 @@ Run `make` to list every target.
 
 ### Speed
 
-`SPEED` (0.5–2.0, default 1.1) and `STEPS` (Voxtral flow-matching steps, 2–8, default 6) override
-`~/.localvoice.json` for one run:
+`SPEED` (0.5–2.0, default 1.0) and `STEPS` (diffusion steps for VoxCPM2 / Voxtral, 2–10, default 4 / 6)
+override `~/.localvoice.json` for one run:
 
 ```sh
 make start SPEED=1.25
 make say SPEED=1.5 STEPS=4 TEXT="Main abhi busy hoon, baad mein call karta hoon."
 ```
 
-The menu's Speed submenu changes it while running and saves it. Voxtral keeps up with playback up to
-~1.4× at 6 steps and ~1.8× at 4; above that, lower `STEPS` or speech will have gaps.
+The menu's Speed submenu changes it while running and saves it. VoxCPM2 only just keeps up at 1× on an
+M1 Pro, so faster speeds make it pause between chunks (the terminal prints `[audio] N gap(s)`); pick
+Voxtral for fast listening. Voxtral keeps up to ~1.4× at 6 steps and ~1.8× at 4.
+
+### Voices
+
+VoxCPM2 speaks in the voice of a short reference clip, continuing on from it: each voice is a `.wav`
+and a `.txt` with exactly what the clip says, in `src/static/voices/`. `indian_male.wav` was itself
+generated by VoxCPM2 from the description "A calm, confident middle-aged Indian man with a deep
+voice, speaking clearly and professionally like a news anchor", so no real person's voice is cloned.
+To add a voice, drop in `<name>.wav` (5–10 s, clean speech) and `<name>.txt`, and add `<name>` to
+`ENGINE_VOICES["voxcpm2"]` in `src/core/config/settings.py`. Only use recordings of yourself or
+someone who agreed to it.
 
 Settings live in `~/.localvoice.json` (voice and speed are also in the menu); e.g.
 `{"speed": 1.25, "hotkey": "cmd_r", "transliterate_llm": false, "output_device": "External Headphones"}`.
@@ -88,7 +113,7 @@ espeak-ng is bundled; no Homebrew install needed.
 
 ### Windows
 
-- Windows and Linux use Kokoro only (Voxtral needs MLX). Kokoro (~330 MB) and the voices download on first launch.
+- Windows and Linux use Kokoro only (VoxCPM2 and Voxtral need MLX here). Kokoro (~330 MB) and the voices download on first launch.
 - NVIDIA GPU: install a CUDA build of PyTorch for GPU speed; without it it runs on CPU (still faster than real time).
 - Reading from apps running as Administrator requires running LocalVoice as Administrator.
 

@@ -25,6 +25,8 @@ class _FakeStream:
     def write(self, chunk):
         if chunk.dtype != np.float32:  # like sounddevice: "dtype mismatch: 'float64' vs 'float32'"
             raise TypeError(f"dtype mismatch: {chunk.dtype}")
+        if not chunk.flags.c_contiguous:  # like sounddevice: "data must be C-contiguous"
+            raise TypeError("data must be C-contiguous")
         self.release.wait()
         self.written.append(chunk)
 
@@ -73,3 +75,11 @@ def test_float64_chunks_are_converted(monkeypatch):
     player.feed(np.ones(10, dtype=np.float64))
     player.finish()
     assert _FakeStream.instances[0].written[0].dtype == np.float32
+
+
+def test_strided_chunks_are_made_contiguous(monkeypatch):
+    player = _player(monkeypatch)
+    player.start()
+    player.feed(np.arange(20, dtype=np.float32)[::2])  # every other sample, as HalfRate produces
+    player.finish()
+    np.testing.assert_array_equal(_FakeStream.instances[0].written[0], np.arange(0, 20, 2))

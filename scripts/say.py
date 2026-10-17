@@ -7,7 +7,7 @@ Usage: make say TEXT="Kal ki meeting mein timeline discuss karni hai" [SPEED=1.2
 import argparse
 import time
 
-from src.core.config.settings import Config, add_run_args
+from src.core.config.settings import Config, add_run_args, run_overrides
 from src.modules.transliterate import services as transliterate
 from src.modules.tts import services as tts
 from src.shared.audio import Player
@@ -22,7 +22,7 @@ def main():
     text = " ".join(args.text).strip()
     if not text:
         parser.error('no text given (make say TEXT="...")')
-    cfg = Config.load(speed=args.speed, voxtral_steps=args.voxtral_steps)
+    cfg = Config.load(**run_overrides(args))
     tts.warmup(cfg)
     player = Player()
     player.start(cfg.output_device)

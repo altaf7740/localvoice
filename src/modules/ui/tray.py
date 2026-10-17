@@ -3,7 +3,7 @@
 import pystray
 from PIL import Image, ImageDraw
 
-from ...core.config.settings import ENGINE_VOICES, SPEEDS, Config
+from ...core.config.settings import ENGINE_NAMES, ENGINE_VOICES, SPEEDS, Config
 from ...core.reader import IDLE, LOADING, SPEAKING, WORKING, Reader
 from ..tts.services import resolve_voice
 
@@ -65,7 +65,7 @@ def run(cfg: Config):
                 pystray.Menu(
                     *(
                         pystray.MenuItem(
-                            f"{e.capitalize()} · {v}",
+                            f"{ENGINE_NAMES[e]} · {v}",
                             set_voice(e, v),
                             checked=lambda _, e=e, v=v: resolve_voice(cfg) == (e, v),
                             radio=True,

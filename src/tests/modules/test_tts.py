@@ -3,7 +3,7 @@ from src.modules.tts import services
 
 
 def test_empty_text_yields_nothing(monkeypatch):
-    for name in ("_synthesize_voxtral", "_synthesize_kokoro_mlx", "_synthesize_kokoro_torch"):
+    for name in ("_synthesize_voxcpm2", "_synthesize_voxtral", "_synthesize_kokoro_mlx", "_synthesize_kokoro_torch"):
         monkeypatch.setattr(services, name, lambda text, voice, cfg: 1 / 0)
     assert list(services.synthesize("   ", Config())) == []
 
@@ -29,21 +29,36 @@ def test_resolve_voice_fixes_mismatched_voice(monkeypatch):
     assert services.resolve_voice(Config(tts_engine="kokoro", voice="hf_alpha")) == ("kokoro", "hm_omega")
 
 
-def test_voxtral_falls_back_to_kokoro_where_it_cannot_run(monkeypatch):
+def test_mlx_engines_fall_back_to_kokoro_where_they_cannot_run(monkeypatch):
     monkeypatch.setattr(services, "ENGINE_VOICES", {"kokoro": ["hm_omega", "hm_psi"]})
     assert services.resolve_voice(Config(tts_engine="voxtral", voice="hi_male")) == ("kokoro", "hm_omega")
+    assert services.resolve_voice(Config(tts_engine="voxcpm2", voice="indian_male")) == ("kokoro", "hm_omega")
+
+
+def test_every_voxcpm2_voice_has_a_reference_clip_and_transcript():
+    for voice in ["indian_male"]:
+        assert (services.VOICES_DIR / f"{voice}.wav").is_file()
+        assert (services.VOICES_DIR / f"{voice}.txt").read_text().strip()
 
 
 def test_dispatches_to_configured_engine(monkeypatch):
     calls = []
-    monkeypatch.setattr(services, "ENGINE_VOICES", {"voxtral": ["hi_male"], "kokoro": ["hm_omega", "hm_psi"]})
+    monkeypatch.setattr(
+        services,
+        "ENGINE_VOICES",
+        {"voxcpm2": ["indian_male"], "voxtral": ["hi_male"], "kokoro": ["hm_omega", "hm_psi"]},
+    )
     monkeypatch.setattr(services, "APPLE_SILICON", True)
+    monkeypatch.setattr(
+        services, "_synthesize_voxcpm2", lambda text, voice, cfg: calls.append(("voxcpm2", voice)) or []
+    )
     monkeypatch.setattr(
         services, "_synthesize_voxtral", lambda text, voice, cfg: calls.append(("voxtral", voice)) or []
     )
     monkeypatch.setattr(
         services, "_synthesize_kokoro_mlx", lambda text, voice, cfg: calls.append(("kokoro", voice)) or []
     )
+    list(services.synthesize("नमस्ते", Config(tts_engine="voxcpm2", voice="indian_male")))
     list(services.synthesize("नमस्ते", Config(tts_engine="voxtral", voice="hi_male")))
     list(services.synthesize("नमस्ते", Config(tts_engine="kokoro", voice="hm_psi")))
-    assert calls == [("voxtral", "hi_male"), ("kokoro", "hm_psi")]
+    assert calls == [("voxcpm2", "indian_male"), ("voxtral", "hi_male"), ("kokoro", "hm_psi")]
