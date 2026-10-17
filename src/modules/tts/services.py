@@ -80,8 +80,9 @@ def _on_mlx_thread(chunks: Iterator[np.ndarray]) -> Iterator[np.ndarray]:
 
 
 def warmup(cfg: Config):
-    """Load the model and voice so the first real request doesn't pay for it."""
-    for _ in synthesize("नमस्ते", cfg):
+    """Load the model and voice so the first real request doesn't pay for it. Long enough for
+    VoxCPM2 to decode every chunk size once, as compiling each costs ~0.2 s the first time."""
+    for _ in synthesize("नमस्ते, आज का दिन बहुत अच्छा है।", cfg):
         pass
 
 

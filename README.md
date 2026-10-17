@@ -47,8 +47,9 @@ OpenBMB reports VoxCPM2 at RTF ~0.30 on an RTX 4090 (bf16, ~8 GB of VRAM); their
 VoxCPM2 runs 4 diffusion steps per 0.16 s patch instead of its default 10 (`voxcpm2_steps`): Whisper
 transcripts were as clean as at 10, and 4 is the most an M1 Pro can run at 1× (3 garbles words).
 mlx-audio's VoxCPM2 only returns a sentence once it's fully generated, so `src/modules/tts/voxcpm2.py`
-re-implements its generation loop to decode every ~1 s, and reads the voice's transcript into the
-model once instead of per sentence. It pins `mlx-audio==0.5.9`, whose internals it uses. About one
+re-implements its generation loop to decode as it goes (0.3 s of audio after the first 2 patches,
+growing to ~1 s chunks), and reads the voice's transcript into the model once instead of per
+sentence. It pins `mlx-audio==0.5.9`, whose internals it uses. About one
 sentence in 30 the model doesn't stop on its own; it's cut off at 2 s + 0.7 s per word.
 
 ## Setup

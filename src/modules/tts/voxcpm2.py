@@ -8,7 +8,7 @@ as "3-3-10-10-1", "Duh, ds bajay"…), which continuation never did.
 
 Two changes from mlx-audio 0.5.9's generate(), which this otherwise mirrors:
 - Streaming: it decodes a sentence only once all of it is generated, so a 5 s sentence started
-  playing ~5 s after the tap. This decodes every CHUNK patches. The audio decoder is causal, so a
+  playing ~5 s after the tap. This decodes every few patches (CHUNKS). The audio decoder is causal, so a
   window with CONTEXT patches of history in front reproduces the whole-sentence decode (relative
   error 2e-4 with 3 patches).
 - The transcript comes first in the prompt and both LMs are causal, so it's run through them once
@@ -25,7 +25,9 @@ import numpy as np
 
 from .limits import PATCH_SECONDS, max_patches
 
-CHUNK = 6  # patches decoded at a time: 6 × 0.16 s ≈ 1 s of audio per chunk
+# patches decoded at a time (× 0.16 s of audio each), the last size repeating. Small at first so
+# audio starts sooner, then growing so decoding keeps ahead of playback.
+CHUNKS = (2, 3, 4, 6)
 CONTEXT = 3  # patches of history in front of each decoded chunk (mlx-audio's streaming_prefix_len - 1)
 MIN_PATCHES = 2  # mlx-audio's min_tokens: don't stop before this many
 
@@ -40,7 +42,7 @@ class Voice:
 
 def compile_model(model):
     """Compile the parts that always see the same shapes: the DiT's ODE solve (one patch at a time)
-    and the audio decoder (windows of at most CONTEXT + CHUNK patches). Together ~20% faster on an
+    and the audio decoder (windows of at most CONTEXT + max(CHUNKS) patches). Together ~20% faster on an
     M1 Pro (RTF 1.75 → 1.38 under load). The LMs can't be: their KV caches grow every step, and
     4-bit LMs were no faster than 8-bit, so they're bound by per-op overhead, not memory."""
     model.feat_decoder.solve_euler = mx.compile(model.feat_decoder.solve_euler)
@@ -106,6 +108,7 @@ def stream(model, text: str, voice: Voice, steps: int, cfg_value: float = 2.0) -
     # the clip's last patches go first as decoding context, so the sentence joins on smoothly
     patches: list[mx.array] = [voice.feats[:, i] for i in range(voice.feats.shape[1] - CONTEXT, voice.feats.shape[1])]
     done = len(patches)  # patches already decoded and yielded (or context only)
+    chunk = 0  # chunks yielded so far
     for i in range(limit):
         dit_h = mx.concatenate([model.lm_to_dit_proj(lm_hidden), model.res_to_dit_proj(res_hidden)], axis=-1)
         pred = model.feat_decoder.sample(
@@ -115,9 +118,10 @@ def stream(model, text: str, voice: Voice, steps: int, cfg_value: float = 2.0) -
         stop = mx.argmax(model.stop_head(nn.silu(model.stop_proj(lm_hidden))), axis=-1).item() == 1
         if i > MIN_PATCHES and stop:
             break
-        if len(patches) - done >= CHUNK:
+        if len(patches) - done >= CHUNKS[min(chunk, len(CHUNKS) - 1)]:
             yield _decode(model, patches, done, last=False)
             done = len(patches)
+            chunk += 1
 
         curr = model.enc_to_lm_proj(model.feat_encoder(pred[:, None, :, :]))
         out, lm_cache = model.base_lm(inputs_embeds=curr, cache=lm_cache)
