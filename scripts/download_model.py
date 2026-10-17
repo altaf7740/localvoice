@@ -1,4 +1,4 @@
-"""Download VoxCPM2 and Voxtral (Apple Silicon), Kokoro-82M and their male voices into the HuggingFace cache.
+"""Download VoxCPM2 (Apple Silicon or an NVIDIA GPU), Kokoro-82M and their male voices into the HuggingFace cache.
 
 Usage: make model
    or: uv run python -m scripts.download_model

@@ -39,11 +39,11 @@ def test_save_persists_only_given_keys_and_keeps_existing(tmp_path, monkeypatch)
 
 def test_overrides_beat_config_file_and_none_is_ignored(tmp_path, monkeypatch):
     path = tmp_path / "localvoice.json"
-    path.write_text(json.dumps({"speed": 1.25, "voxtral_steps": 8}))
+    path.write_text(json.dumps({"speed": 1.25, "voxcpm2_steps": 8}))
     monkeypatch.setattr(settings, "CONFIG_PATH", path)
-    cfg = Config.load(speed=1.4, voxtral_steps=None)
+    cfg = Config.load(speed=1.4, voxcpm2_steps=None)
     assert cfg.speed == 1.4
-    assert cfg.voxtral_steps == 8
+    assert cfg.voxcpm2_steps == 8
 
 
 def _parse(*argv):
@@ -58,12 +58,10 @@ def test_run_args():
     assert (_parse().speed, _parse().steps) == (None, None)
 
 
-def test_steps_flag_applies_to_both_diffusion_engines(tmp_path, monkeypatch):
+def test_steps_flag_sets_voxcpm2_steps(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "CONFIG_PATH", tmp_path / "missing.json")
-    cfg = Config.load(**run_overrides(_parse("--steps", "5")))
-    assert (cfg.voxcpm2_steps, cfg.voxtral_steps) == (5, 5)
-    cfg = Config.load(**run_overrides(_parse()))
-    assert (cfg.voxcpm2_steps, cfg.voxtral_steps) == (4, 6)
+    assert Config.load(**run_overrides(_parse("--steps", "5"))).voxcpm2_steps == 5
+    assert Config.load(**run_overrides(_parse())).voxcpm2_steps == 4
 
 
 @pytest.mark.parametrize("argv", [("--speed", "3"), ("--speed", "fast"), ("--steps", "1"), ("--steps", "12")])

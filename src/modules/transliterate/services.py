@@ -14,7 +14,7 @@ TOKEN = re.compile(r"[A-Za-z]+|[ऀ-ॿ]+|[^\sA-Za-zऀ-ॿ]")
 
 
 def to_devanagari(text: str, cfg: Config) -> str:
-    """Rewrite Roman-script Hindi words in Devanagari so Kokoro pronounces them as Hindi."""
+    """Rewrite Roman-script Hindi words in Devanagari so the TTS engine pronounces them as Hindi."""
     if not LATIN_WORD.search(text):
         return text
     if cfg.transliterate_llm:

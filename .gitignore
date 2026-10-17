@@ -8,9 +8,6 @@ dist/
 # Virtual environments
 .venv
 
-# Eval clips written by `make eval ARGS=--save`
-src/static/eval/out/
-
 # Tooling caches
 .pytest_cache/
 .ruff_cache/

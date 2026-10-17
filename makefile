@@ -1,4 +1,4 @@
-.PHONY: help install model start stop status restart say eval test lint lint-fix check clean
+.PHONY: help install model start stop status restart say test lint lint-fix check clean
 
 TRANSLITERATE_MODEL := qwen2.5:7b-instruct
 # Optional per-run overrides: make start SPEED=1.25 STEPS=4 (they beat ~/.localvoice.json)
@@ -16,7 +16,7 @@ help:
 	@echo "$(Y)Usage:$(R) make [target]\n"
 	@echo "$(C)Setup:$(R)"
 	@echo "  $(G)install$(R)      Install dependencies (incl. dev tools)"
-	@echo "  $(G)model$(R)        Download VoxCPM2 + Voxtral + Kokoro (male voices) and pull the Ollama model"
+	@echo "  $(G)model$(R)        Download VoxCPM2 + Kokoro (male voices) and pull the Ollama model"
 	@echo ""
 	@echo "$(C)App:$(R)"
 	@echo "  $(G)start$(R)        Run LocalVoice (menu bar on macOS, tray on Windows/Linux) [SPEED=1.25 STEPS=4]"
@@ -24,9 +24,6 @@ help:
 	@echo "  $(G)status$(R)       Check if LocalVoice is running"
 	@echo "  $(G)restart$(R)      Stop, then start"
 	@echo "  $(G)say$(R)          Speak TEXT=\"...\" from the terminal [SPEED=1.25 STEPS=4]"
-	@echo ""
-	@echo "$(C)Evaluation:$(R)"
-	@echo "  $(G)eval$(R)         Whisper round-trip CER + latency on src/static/eval (ARGS=\"--llm --save\")"
 	@echo ""
 	@echo "$(C)Testing & Code Quality:$(R)"
 	@echo "  $(G)test$(R)         Run tests"
@@ -58,9 +55,6 @@ restart: stop start
 
 say:
 	uv run python -m scripts.say $(RUN_FLAGS) "$(TEXT)"
-
-eval:
-	uv run --group eval python -m scripts.run_eval $(ARGS)
 
 test:
 	uv run pytest
