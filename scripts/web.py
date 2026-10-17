@@ -5,14 +5,14 @@ Usage: make web [SPEED=1.25] [STEPS=4]   (then open http://localhost:8765)
 """
 
 import argparse
+import base64
 import dataclasses
-import io
 import json
 import threading
 import time
-import wave
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Iterator
 
 import numpy as np
 
@@ -29,16 +29,9 @@ ENGINE = "voxcpm2"  # the only engine this UI offers
 _tts_lock = threading.Lock()
 
 
-def to_wav(audio: np.ndarray, sample_rate: int = tts.SAMPLE_RATE) -> bytes:
-    """16-bit mono PCM WAV, which every browser plays."""
-    pcm = (np.clip(audio, -1.0, 1.0) * 32767).astype("<i2")
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as f:
-        f.setnchannels(1)
-        f.setsampwidth(2)
-        f.setframerate(sample_rate)
-        f.writeframes(pcm.tobytes())
-    return buf.getvalue()
+def to_pcm16(audio: np.ndarray) -> str:
+    """Base64 of 16-bit little-endian mono samples, which the page decodes and plays."""
+    return base64.b64encode((np.clip(audio, -1.0, 1.0) * 32767).astype("<i2").tobytes()).decode()
 
 
 def request_config(base: Config, body: dict) -> Config:
@@ -57,6 +50,7 @@ def options(cfg: Config) -> dict:
     cfg = request_config(cfg, {})
     return {
         "voices": ENGINE_VOICES[ENGINE],
+        "sample_rate": tts.SAMPLE_RATE,
         "speeds": SPEEDS,
         "defaults": {
             "voice": cfg.voice,
@@ -71,25 +65,27 @@ def prepare(text: str) -> list[dict]:
     return [{"original": s, "prepared": transliterate.to_devanagari(s)} for s in split_sentences(text[:MAX_TEXT])]
 
 
-def speak(text: str, cfg: Config) -> tuple[bytes, dict]:
-    """WAV of one (already transliterated) sentence, and how long it took."""
+def speak(text: str, cfg: Config) -> Iterator[dict]:
+    """One (already transliterated) sentence as {"audio": …} messages, sent as each chunk is made,
+    then {"stats": …} with how long it took. Closing it early stops the synthesis."""
     with _tts_lock:
         t0 = time.time()
         first = None
-        chunks = []
+        samples = 0
         for chunk in tts.synthesize(text[:MAX_TEXT], cfg):
             first = first or time.time() - t0
-            chunks.append(chunk)
+            samples += len(chunk)
+            yield {"audio": to_pcm16(chunk)}
         total = time.time() - t0
-    audio = np.concatenate(chunks) if chunks else np.zeros(0, dtype=np.float32)
-    seconds = len(audio) / tts.SAMPLE_RATE
-    stats = {
-        "first_chunk": round(first or 0, 3),
-        "synth": round(total, 3),
-        "audio": round(seconds, 3),
-        "rtf": round(total / seconds, 3) if seconds else None,
+    seconds = samples / tts.SAMPLE_RATE
+    yield {
+        "stats": {
+            "first_chunk": round(first or 0, 3),
+            "synth": round(total, 3),
+            "audio": round(seconds, 3),
+            "rtf": round(total / seconds, 3) if seconds else None,
+        }
     }
-    return to_wav(audio), stats
 
 
 def warmup(cfg: Config):
@@ -123,20 +119,33 @@ def make_handler(base: Config):
             if self.path == "/api/prepare":
                 self._json({"sentences": prepare(text)})
             elif self.path == "/api/speak":
-                wav, stats = speak(text, cfg)
-                self._send(200, wav, "audio/wav", {"X-Stats": json.dumps(stats)})
+                self._stream(speak(text, cfg))
             else:
                 self._send(404, b"not found", "text/plain")
+
+        def _stream(self, messages: Iterator[dict]):
+            """One JSON object per line, each written as soon as it's ready; the body ends when
+            the connection closes (HTTP/1.0)."""
+            self.send_response(200)
+            self.send_header("Content-Type", "application/x-ndjson")
+            self.end_headers()
+            try:
+                for message in messages:
+                    self.wfile.write(json.dumps(message).encode() + b"\n")
+            except (BrokenPipeError, ConnectionResetError):
+                pass  # the page pressed Stop; closing `messages` below stops the synthesis
+            except Exception as e:
+                self.wfile.write(json.dumps({"error": str(e)}).encode() + b"\n")
+            finally:
+                messages.close()
 
         def _json(self, data: dict, status: int = 200):
             self._send(status, json.dumps(data, ensure_ascii=False).encode(), "application/json")
 
-        def _send(self, status: int, body: bytes, content_type: str, headers: dict | None = None):
+        def _send(self, status: int, body: bytes, content_type: str):
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
-            for key, value in (headers or {}).items():
-                self.send_header(key, value)
             self.end_headers()
             self.wfile.write(body)
 

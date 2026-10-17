@@ -1,18 +1,40 @@
-import io
-import wave
+import base64
 
 import numpy as np
 
-from scripts.web import options, request_config, to_wav
+from scripts import web
+from scripts.web import options, request_config, to_pcm16
 from src.core.config.settings import ENGINE_VOICES, Config
 
 
-def test_to_wav_is_16_bit_mono_and_clips():
-    wav = to_wav(np.array([0.0, 0.5, 2.0, -2.0], dtype=np.float32), 24000)
-    with wave.open(io.BytesIO(wav)) as f:
-        assert (f.getnchannels(), f.getsampwidth(), f.getframerate(), f.getnframes()) == (1, 2, 24000, 4)
-        samples = np.frombuffer(f.readframes(4), dtype="<i2")
-    assert samples.tolist() == [0, 16383, 32767, -32767]
+def test_to_pcm16_is_little_endian_16_bit_and_clips():
+    pcm = np.frombuffer(base64.b64decode(to_pcm16(np.array([0.0, 0.5, 2.0, -2.0], dtype=np.float32))), dtype="<i2")
+    assert pcm.tolist() == [0, 16383, 32767, -32767]
+
+
+def test_speak_streams_each_chunk_then_stats(monkeypatch):
+    chunks = [np.zeros(2400, dtype=np.float32), np.zeros(4800, dtype=np.float32)]
+    monkeypatch.setattr(web.tts, "synthesize", lambda text, cfg: iter(chunks))
+    messages = list(web.speak("नमस्ते", Config()))
+    assert [len(base64.b64decode(m["audio"])) for m in messages[:2]] == [4800, 9600]
+    assert messages[2]["stats"]["audio"] == 0.3
+
+
+def test_closing_speak_early_stops_synthesis_and_frees_the_lock(monkeypatch):
+    closed = []
+
+    def synthesize(text, cfg):
+        try:
+            while True:
+                yield np.zeros(10, dtype=np.float32)
+        finally:
+            closed.append(True)
+
+    monkeypatch.setattr(web.tts, "synthesize", synthesize)
+    messages = web.speak("नमस्ते", Config())
+    next(messages)
+    messages.close()
+    assert closed and not web._tts_lock.locked()
 
 
 def test_request_config_is_always_voxcpm2_and_clamps():

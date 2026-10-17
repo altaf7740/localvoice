@@ -84,8 +84,13 @@ const SAMPLES = [
   "Tell me kya plan hai weekend ka?",
 ];
 const $ = (id) => document.getElementById(id);
+const LEAD = 0.02;    // seconds between a chunk arriving and it playing, so it isn't clipped
+let sampleRate = 24000;
 let run = 0;          // bumped on every Speak/Stop so stale work drops out
-let current = null;   // the Audio element playing now
+let ctx = null;       // AudioContext, created on the first click (browsers require a gesture)
+let sources = [];     // scheduled chunks, so Stop can silence them
+let timers = [];      // sentence highlight timers
+let controller = null;
 
 function setStatus(text, error = false) {
   $("status").textContent = text;
@@ -101,23 +106,73 @@ function syncLabels() {
   $("stepsVal").textContent = $("steps").value;
 }
 
-async function post(path, body) {
-  const resp = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+async function post(path, body, signal) {
+  const resp = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
   if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || resp.statusText);
   return resp;
 }
 
-function play(url, li, myRun) {
-  return new Promise((resolve) => {
-    if (myRun !== run) return resolve();
-    current = new Audio(url);
-    li.classList.add("playing");
-    const done = () => { li.classList.remove("playing"); resolve(); };
-    current.onended = done;
-    current.onerror = done;
-    current.onpause = done;
-    current.play().catch(done);
-  });
+// one JSON object per line, as the server writes them
+async function* messages(resp) {
+  const reader = resp.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += value;
+    let i;
+    while ((i = buf.indexOf("\n")) >= 0) {
+      yield JSON.parse(buf.slice(0, i));
+      buf = buf.slice(i + 1);
+    }
+  }
+  if (buf.trim()) yield JSON.parse(buf);
+}
+
+function decodePcm(b64) {
+  const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  return Float32Array.from(new Int16Array(bytes.buffer), (v) => v / 32768);
+}
+
+function audioContext() {
+  if (!ctx) ctx = new AudioContext({ sampleRate });
+  ctx.resume();
+  return ctx;
+}
+
+function schedule(samples, at) {
+  const buffer = ctx.createBuffer(1, samples.length, sampleRate);
+  buffer.copyToChannel(samples, 0);
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  src.connect(ctx.destination);
+  src.start(at);
+  sources.push(src);
+}
+
+function highlight(li, from, to) {
+  const now = ctx.currentTime;
+  timers.push(setTimeout(() => li.classList.add("playing"), Math.max(0, from - now) * 1000));
+  timers.push(setTimeout(() => li.classList.remove("playing"), Math.max(0, to - now) * 1000));
+}
+
+function concat(parts) {
+  const out = new Float32Array(parts.reduce((n, p) => n + p.length, 0));
+  let i = 0;
+  for (const p of parts) { out.set(p, i); i += p.length; }
+  return out;
+}
+
+function toWav(samples) {
+  const view = new DataView(new ArrayBuffer(44 + samples.length * 2));
+  const str = (o, s) => [...s].forEach((c, i) => view.setUint8(o + i, c.charCodeAt(0)));
+  str(0, "RIFF"); view.setUint32(4, 36 + samples.length * 2, true); str(8, "WAVEfmt ");
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true); view.setUint16(34, 16, true); str(36, "data");
+  view.setUint32(40, samples.length * 2, true);
+  samples.forEach((v, i) => view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, v)) * 32767, true));
+  return new Blob([view], { type: "audio/wav" });
 }
 
 function addStat(el, text, cls) {
@@ -132,15 +187,15 @@ async function speak() {
   if (!text) return;
   stop();
   const myRun = ++run;
+  const ac = audioContext();
+  controller = new AbortController();
   const opts = settings();
   const started = performance.now();
   $("results").replaceChildren();
   $("speak").disabled = true;
   $("stop").disabled = false;
-  setStatus("Transliterating…");
   try {
-    const { sentences } = await (await post("/api/prepare", { ...opts, text })).json();
-    if (myRun !== run) return;
+    const { sentences } = await (await post("/api/prepare", { ...opts, text }, controller.signal)).json();
     const items = sentences.map((s) => {
       const li = document.createElement("li");
       const orig = document.createElement("div"); orig.className = "orig"; orig.textContent = s.original;
@@ -151,29 +206,55 @@ async function speak() {
       return { ...s, li, stats };
     });
 
-    // synthesise sentence by sentence; each plays as soon as the one before it finishes
-    let playing = Promise.resolve();
+    // each chunk is queued right after the one before it, so playback starts with the first chunk
+    // while the rest of the sentence (and the next sentences) are still being generated
+    let cursor = 0;       // AudioContext time where the next chunk goes
     let firstAudio = null;
     for (const [i, item] of items.entries()) {
-      if (myRun !== run) return;
-      setStatus(`Synthesising ${i + 1}/${items.length}…`);
-      const resp = await post("/api/speak", { ...opts, text: item.prepared });
-      const stats = JSON.parse(resp.headers.get("X-Stats") || "{}");
-      const url = URL.createObjectURL(await resp.blob());
-      if (myRun !== run) return;
-      firstAudio ??= (performance.now() - started) / 1000;
-      addStat(item.stats, `first chunk ${stats.first_chunk.toFixed(2)}s`);
-      addStat(item.stats, `synth ${stats.synth.toFixed(2)}s`);
-      addStat(item.stats, `audio ${stats.audio.toFixed(2)}s`);
-      if (stats.rtf != null) addStat(item.stats, `RTF ${stats.rtf.toFixed(2)}`, stats.rtf > 1 ? "slow" : "");
+      setStatus(`Speaking ${i + 1}/${items.length}…`);
+      const resp = await post("/api/speak", { ...opts, text: item.prepared }, controller.signal);
+      const parts = [];
+      let gaps = 0, from = null;
+      for await (const msg of messages(resp)) {
+        if (myRun !== run) return;
+        if (msg.error) throw new Error(msg.error);
+        if (msg.stats) {
+          const st = msg.stats;
+          addStat(item.stats, `first chunk ${st.first_chunk.toFixed(2)}s`);
+          addStat(item.stats, `synth ${st.synth.toFixed(2)}s`);
+          addStat(item.stats, `audio ${st.audio.toFixed(2)}s`);
+          if (st.rtf != null) addStat(item.stats, `RTF ${st.rtf.toFixed(2)}`, st.rtf > 1 ? "slow" : "");
+          continue;
+        }
+        const samples = decodePcm(msg.audio);
+        if (cursor < ac.currentTime + LEAD) {
+          if (firstAudio !== null) gaps++;  // the speaker ran dry waiting for this chunk
+          cursor = ac.currentTime + LEAD;
+        }
+        firstAudio ??= (performance.now() - started) / 1000;
+        from ??= cursor;
+        schedule(samples, cursor);
+        cursor += samples.length / sampleRate;
+        parts.push(samples);
+      }
+      if (from === null) continue;
+      highlight(item.li, from, cursor);
+      if (gaps) addStat(item.stats, `${gaps} gap${gaps > 1 ? "s" : ""}`, "slow");
+      const audio = concat(parts);
       const replay = document.createElement("button"); replay.textContent = "▶ Replay";
-      replay.onclick = () => { stop(); run++; play(url, item.li, run); };
-      const dl = document.createElement("a"); dl.href = url; dl.download = `localvoice-${i + 1}.wav`; dl.textContent = "Download";
+      replay.onclick = () => {
+        stop();
+        const at = audioContext().currentTime + LEAD;
+        schedule(audio, at);
+        highlight(item.li, at, at + audio.length / sampleRate);
+      };
+      const dl = document.createElement("a"); dl.href = URL.createObjectURL(toWav(audio));
+      dl.download = `localvoice-${i + 1}.wav`; dl.textContent = "Download";
       item.stats.append(replay, dl);
-      playing = playing.then(() => play(url, item.li, myRun));
     }
+    if (firstAudio === null) return setStatus("Nothing to say.");
     setStatus(`First audio after ${firstAudio.toFixed(2)}s. Playing…`);
-    await playing;
+    await new Promise((r) => timers.push(setTimeout(r, Math.max(0, cursor - ac.currentTime) * 1000)));
     if (myRun === run) setStatus(`Done. First audio after ${firstAudio.toFixed(2)}s, total ${((performance.now() - started) / 1000).toFixed(2)}s.`);
   } catch (e) {
     if (myRun === run) setStatus(`Error: ${e.message}. Is the server still running?`, true);
@@ -184,7 +265,12 @@ async function speak() {
 
 function stop() {
   run++;
-  if (current) { current.pause(); current = null; }
+  controller?.abort();  // the server stops generating when the request goes away
+  for (const src of sources) src.stop();
+  sources = [];
+  timers.forEach(clearTimeout);
+  timers = [];
+  document.querySelectorAll("li.playing").forEach((li) => li.classList.remove("playing"));
   $("speak").disabled = false;
   $("stop").disabled = true;
 }
@@ -198,6 +284,7 @@ async function init() {
   }
   const opts = await (await fetch("/api/options")).json();
   for (const v of opts.voices) $("voice").appendChild(new Option(v, v));
+  sampleRate = opts.sample_rate;
   const d = opts.defaults;
   $("voice").value = d.voice;
   $("speed").value = d.speed;
@@ -205,7 +292,7 @@ async function init() {
   syncLabels();
   for (const id of ["voice", "speed", "steps"]) $(id).addEventListener("input", syncLabels);
   $("speak").onclick = speak;
-  $("stop").onclick = stop;
+  $("stop").onclick = () => { stop(); setStatus("Stopped."); };
   $("text").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) speak(); });
   setStatus("Ready. ⌘/Ctrl+Enter to speak. The first request loads the model, so it takes longer.");
 }
