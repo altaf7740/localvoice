@@ -18,7 +18,7 @@ repo's app.
    only next to Hindi words, so "tell me kya" keeps "me". Hindi words missing from the lexicon are
    read as written; add them to `hinglish.tsv`.
 4. **Speak** — streamed to the speakers chunk by chunk with
-   **[VoxCPM2](https://huggingface.co/openbmb/VoxCPM2)**, OpenBMB's 2B model: 8-bit on MLX, or bf16 on
+   **[VoxCPM2](https://huggingface.co/openbmb/VoxCPM2)**, OpenBMB's 2B model: 4-bit on MLX, or bf16 on
    CUDA with OpenBMB's `voxcpm` package. The `indian_male` voice is a deep, calm Indian male, cloned
    from `src/static/voices/indian_male.wav` (see [Voices](#voices)). Speed (default 1.0×) is applied by
    time-stretching with WSOLA, so pitch stays the same.
@@ -31,8 +31,8 @@ Nothing leaves the machine.
 |---|---|
 | First audio | ~0.3 s |
 | Real-time factor | ~0.6 (generates 1 s of speech in 0.6 s) |
-| Memory | ~4.3 GB (3 GB of weights) |
-| Download | 3 GB |
+| Memory | ~3.3 GB (2.1 GB of weights) |
+| Download | 2.1 GB |
 | Weights licence | Apache 2.0 |
 
 On an NVIDIA GPU OpenBMB reports VoxCPM2 at RTF ~0.30 on an RTX 4090 (bf16, ~8 GB of VRAM); their package streams it
@@ -58,7 +58,7 @@ Common to all: install [uv](https://docs.astral.sh/uv/), then
 
 ```sh
 make install   # uv sync --all-groups
-make model     # download VoxCPM2 (3 GB on a Mac) and prepare its voice
+make model     # download VoxCPM2 (2.1 GB on a Mac) and prepare its voice
 make start
 ```
 

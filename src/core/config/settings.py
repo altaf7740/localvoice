@@ -36,7 +36,8 @@ class Config:
     voice: str = "indian_male"
     # VoxCPM2 has no speed control, so its output is time-stretched (pitch unchanged)
     speed: float = 1.0
-    voxcpm2_model: str = "mlx-community/VoxCPM2-8bit"  # Apple Silicon
+    # Apple Silicon. 4-bit: 0.9 GB less memory than 8-bit and slightly faster, clips the same length.
+    voxcpm2_model: str = "mlx-community/VoxCPM2-4bit"
     voxcpm2_torch_model: str = "openbmb/VoxCPM2"  # NVIDIA GPUs (bf16, ~8 GB of VRAM)
     # diffusion steps per 0.16 s patch (model default 10). 4 sounds as clean as 10 in Whisper
     # round-trips and is the most an M1 Pro can run at 1× speed; 3 garbles words.

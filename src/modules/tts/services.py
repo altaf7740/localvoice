@@ -16,8 +16,8 @@ from .stretch import TimeStretcher
 SAMPLE_RATE = 24000  # VoxCPM2's 48 kHz, halved
 VOICES_DIR = STATIC_DIR / "voices"  # per VoxCPM2 voice: a reference clip (.wav) and what it says (.txt)
 VOICE_CACHE = Path.home() / ".cache" / "localvoice" / "voices"  # those voices prepared by the MLX backend
-# MLX keeps freed GPU buffers for reuse and never hands them back, so VoxCPM2's footprint grew from
-# 3 GB of weights to 9+ GB. Capped at 1 GB it stays ~4.3 GB at the same speed (0.5 GB is slower).
+# MLX keeps freed GPU buffers for reuse and never hands them back, so with 8-bit weights (3 GB) the
+# footprint grew to 9+ GB. Capped at 1 GB it stayed ~4.3 GB at the same speed (0.5 GB is slower).
 MLX_CACHE_LIMIT = 1 << 30
 
 # VoxCPM2's tokenizer loads its config.json as a generic one, and transformers warns that the model

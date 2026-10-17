@@ -44,14 +44,14 @@ def compile_model(model):
     """Compile the parts that always see the same shapes: the DiT's ODE solve (one patch at a time)
     and the audio decoder (windows of at most CONTEXT + max(CHUNKS) patches). Together ~20% faster on an
     M1 Pro (RTF 1.75 → 1.38 under load). The LMs can't be: their KV caches grow every step, and
-    4-bit LMs were no faster than 8-bit, so they're bound by per-op overhead, not memory."""
+    4-bit weights are only ~6% faster than 8-bit, so they're bound by per-op overhead, not memory."""
     model.feat_decoder.solve_euler = mx.compile(model.feat_decoder.solve_euler)
     # the decoder draws noise, so the compiled graph must carry the random state
     model.audio_vae.decode = mx.compile(model.audio_vae.decode, inputs=[mx.random.state], outputs=[mx.random.state])
 
 
 def drop_encoder(model):
-    """Free the audio VAE's encoder (0.19 GB of 8-bit weights): only _prepare_voice() uses it."""
+    """Free the audio VAE's encoder (0.1–0.2 GB): only _prepare_voice() uses it."""
     model.audio_vae.pop("encoder")
 
 
