@@ -18,10 +18,11 @@ repo's app.
    only next to Hindi words, so "tell me kya" keeps "me". Hindi words missing from the lexicon are
    read as written; add them to `hinglish.tsv`.
 4. **Speak** — streamed to the speakers chunk by chunk with
-   **[VoxCPM2](https://huggingface.co/openbmb/VoxCPM2)**, OpenBMB's 2B model: 4-bit on MLX, or bf16 on
-   CUDA with OpenBMB's `voxcpm` package. The `indian_male` voice is a deep, calm Indian male, cloned
-   from `src/static/voices/indian_male.wav` (see [Voices](#voices)). Speed (default 1.0×) is applied by
-   time-stretching with WSOLA, so pitch stays the same.
+   **[VoxCPM2](https://huggingface.co/openbmb/VoxCPM2)**, OpenBMB's 2B model: 4-bit on MLX (its
+   audio-feature parts at 8-bit), or bf16 on CUDA with OpenBMB's `voxcpm` package. The `indian_male`
+   voice is a deep, calm Indian male, cloned from `src/static/voices/indian_male.wav` (see
+   [Voices](#voices)). Speed (default 1.0×) is applied by time-stretching with WSOLA, so pitch stays
+   the same.
 
 Nothing leaves the machine.
 
@@ -29,9 +30,9 @@ Nothing leaves the machine.
 
 | | VoxCPM2 `indian_male` |
 |---|---|
-| First audio | ~0.3 s |
-| Real-time factor | ~0.6 (generates 1 s of speech in 0.6 s) |
-| Memory | ~3.3 GB (2.1 GB of weights) |
+| First audio | ~0.25 s |
+| Real-time factor | ~0.45 (generates 1 s of speech in 0.45 s) |
+| Memory | ~2.3 GB (1.9 GB of weights) |
 | Download | 2.1 GB |
 | Weights licence | Apache 2.0 |
 
@@ -78,7 +79,7 @@ make start SPEED=1.25
 make say SPEED=1.5 STEPS=4 TEXT="Main abhi busy hoon, baad mein call karta hoon."
 ```
 
-The menu's Speed submenu changes it while running and saves it. Generation runs only ~1.7× faster
+The menu's Speed submenu changes it while running and saves it. Generation runs only ~2× faster
 than playback on an M1 Pro, so at high speeds or with more steps it can pause between chunks (the
 terminal prints `[audio] N gap(s)`).
 

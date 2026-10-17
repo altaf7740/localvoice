@@ -30,6 +30,9 @@ from .limits import PATCH_SECONDS, max_patches
 CHUNKS = (2, 3, 4, 6)
 CONTEXT = 3  # patches of history in front of each decoded chunk (mlx-audio's streaming_prefix_len - 1)
 MIN_PATCHES = 2  # mlx-audio's min_tokens: don't stop before this many
+# The 4-bit checkpoint only quantizes the LMs and leaves the DiT and feature encoder (0.84 GB) in
+# 16-bit. At 8 bits they're half the size and ~17% faster on an M1 Pro, clips the same length.
+FEATURE_BITS = 8
 
 
 @dataclass
@@ -38,6 +41,11 @@ class Voice:
     res_cache: list
     feats: mx.array  # (1, T, P, D): the clip as latent patches
     feat_embed: mx.array  # (1, T, H): those patches as LM inputs
+
+
+def quantize_features(model):
+    for part in (model.feat_decoder, model.feat_encoder):
+        nn.quantize(part, group_size=64, bits=FEATURE_BITS)
 
 
 def compile_model(model):

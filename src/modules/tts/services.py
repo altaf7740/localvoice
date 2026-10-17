@@ -97,6 +97,7 @@ def _load(cfg: Config):
 
             mx.set_cache_limit(MLX_CACHE_LIMIT)
             model = load(cached(cfg.voxcpm2_model, DEFAULT_ALLOW_PATTERNS))  # the files mlx-audio downloads
+            backend.quantize_features(model)
             backend.compile_model(model)
             # every voice now (from its saved file after the first run), so the encoder can go
             for voice in VOICES:
@@ -116,9 +117,9 @@ def _prepare_voice(backend, model, voice: str, cfg: Config):
     transcript = (VOICES_DIR / f"{voice}.txt").read_text().strip()
     if not APPLE_SILICON:
         return backend.prepare_voice(model, str(clip), transcript)
-    # named after the model and what's in the clip and transcript, so editing either or switching
-    # models never reuses a stale voice
-    key = hashlib.sha256(clip.read_bytes() + transcript.encode()).hexdigest()[:16]
+    # named after the model, the feature encoder's precision and what's in the clip and transcript,
+    # so changing any of them never reuses a stale voice
+    key = hashlib.sha256(clip.read_bytes() + transcript.encode() + bytes([backend.FEATURE_BITS])).hexdigest()[:16]
     cache = VOICE_CACHE / cfg.voxcpm2_model.replace("/", "--") / f"{voice}-{key}.safetensors"
     return backend.prepare_voice(model, str(clip), transcript, cache)
 
