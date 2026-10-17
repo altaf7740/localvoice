@@ -50,6 +50,11 @@ def compile_model(model):
     model.audio_vae.decode = mx.compile(model.audio_vae.decode, inputs=[mx.random.state], outputs=[mx.random.state])
 
 
+def drop_encoder(model):
+    """Free the audio VAE's encoder (0.19 GB of 8-bit weights): only _prepare_voice() uses it."""
+    model.audio_vae.pop("encoder")
+
+
 def prepare_voice(model, clip: str, transcript: str, cache: Path | None = None) -> Voice:
     """Encode the reference clip and run its transcript through both LMs, once per voice.
     That takes ~1 s, so with `cache` it's saved there and loaded on later starts instead."""

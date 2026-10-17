@@ -98,6 +98,10 @@ def _load(cfg: Config):
             mx.set_cache_limit(MLX_CACHE_LIMIT)
             model = load(cached(cfg.voxcpm2_model, DEFAULT_ALLOW_PATTERNS))  # the files mlx-audio downloads
             backend.compile_model(model)
+            # every voice now (from its saved file after the first run), so the encoder can go
+            for voice in VOICES:
+                _voices[voice] = _prepare_voice(backend, model, voice, cfg)
+            backend.drop_encoder(model)
             print(f"[tts] {cfg.voxcpm2_model} on mlx", flush=True)
         else:
             from . import voxcpm2_torch as backend
