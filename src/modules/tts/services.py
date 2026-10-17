@@ -17,8 +17,8 @@ SAMPLE_RATE = 24000  # VoxCPM2's 48 kHz, halved
 VOICES_DIR = STATIC_DIR / "voices"  # per VoxCPM2 voice: a reference clip (.wav) and what it says (.txt)
 VOICE_CACHE = Path.home() / ".cache" / "localvoice" / "voices"  # those voices prepared by the MLX backend
 # MLX keeps freed GPU buffers for reuse and never hands them back, so with 8-bit weights (3 GB) the
-# footprint grew to 9+ GB. Capped at 1 GB it stayed ~4.3 GB at the same speed (0.5 GB is slower).
-MLX_CACHE_LIMIT = 1 << 30
+# footprint grew to 9+ GB. With the current weights a 256 MB cap costs ~1% in speed against 1 GB.
+MLX_CACHE_LIMIT = 256 << 20
 
 # VoxCPM2's tokenizer loads its config.json as a generic one, and transformers warns that the model
 # types differ on every start. Read when transformers is first imported, i.e. when a model loads.
