@@ -2,7 +2,10 @@
 
 Fully local text-to-speech for macOS, Windows and Linux that reads Hinglish aloud.
 Select text in any app, tap the hotkey (**Right ⌥** on macOS, **Right Shift** on Windows/Linux), and it speaks.
-Tap again to stop. The companion to [LocalFlow](../localflow), which goes the other way.
+Tap again to stop. The companion to [LocalFlow](https://github.com/altaf7740/localflow), which goes the other
+way (speak Hinglish, get text). The two use different hotkeys (Left ⌥ hold vs Right ⌥ tap; Right Ctrl vs Right
+Shift on Windows/Linux) and can run at the same time; `make stop` / `make status` in each repo only touch that
+repo's app.
 
 ## Pipeline
 
