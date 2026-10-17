@@ -22,13 +22,11 @@ import mlx.core as mx
 import mlx.nn as nn
 import numpy as np
 
+from .limits import PATCH_SECONDS, max_patches
+
 CHUNK = 6  # patches decoded at a time: 6 × 0.16 s ≈ 1 s of audio per chunk
 CONTEXT = 3  # patches of history in front of each decoded chunk (mlx-audio's streaming_prefix_len - 1)
 MIN_PATCHES = 2  # mlx-audio's min_tokens: don't stop before this many
-# About 1 sentence in 30 the stop head never fires and the model rambles on for 20 s or more.
-# Normal speech here is ~0.3 s per Hindi word and ~0.45 s per English word, so cut it off well past that.
-MAX_SECONDS_BASE = 2.0
-MAX_SECONDS_PER_WORD = 0.7
 
 
 @dataclass
@@ -37,6 +35,16 @@ class Voice:
     res_cache: list
     feats: mx.array  # (1, T, P, D): the clip as latent patches
     feat_embed: mx.array  # (1, T, H): those patches as LM inputs
+
+
+def compile_model(model):
+    """Compile the parts that always see the same shapes: the DiT's ODE solve (one patch at a time)
+    and the audio decoder (windows of at most CONTEXT + CHUNK patches). Together ~20% faster on an
+    M1 Pro (RTF 1.75 → 1.38 under load). The LMs can't be: their KV caches grow every step, and
+    4-bit LMs were no faster than 8-bit, so they're bound by per-op overhead, not memory."""
+    model.feat_decoder.solve_euler = mx.compile(model.feat_decoder.solve_euler)
+    # the decoder draws noise, so the compiled graph must carry the random state
+    model.audio_vae.decode = mx.compile(model.audio_vae.decode, inputs=[mx.random.state], outputs=[mx.random.state])
 
 
 def prepare_voice(model, clip: str, transcript: str) -> Voice:
@@ -70,12 +78,11 @@ def stream(model, text: str, voice: Voice, steps: int, cfg_value: float = 2.0) -
     lm_hidden, res_hidden = enc[:, -1, :], res[:, -1, :]
     cond = voice.feats[:, -1]  # (1, P, D): the previous patch conditions the next
 
-    per_patch = model.patch_size * model.audio_vae.decode_chunk_size / model.sample_rate  # 0.16 s
-    max_patches = int((MAX_SECONDS_BASE + MAX_SECONDS_PER_WORD * len(text.split())) / per_patch)
+    limit = max_patches(text)
     # the clip's last patches go first as decoding context, so the sentence joins on smoothly
     patches: list[mx.array] = [voice.feats[:, i] for i in range(voice.feats.shape[1] - CONTEXT, voice.feats.shape[1])]
     done = len(patches)  # patches already decoded and yielded (or context only)
-    for i in range(max_patches):
+    for i in range(limit):
         dit_h = mx.concatenate([model.lm_to_dit_proj(lm_hidden), model.res_to_dit_proj(res_hidden)], axis=-1)
         pred = model.feat_decoder.sample(
             mu=dit_h, n_timesteps=steps, patch_size=model.patch_size, cond=cond.transpose(0, 2, 1), cfg_value=cfg_value
@@ -98,7 +105,7 @@ def stream(model, text: str, voice: Voice, steps: int, cfg_value: float = 2.0) -
         res_hidden = res[:, -1, :]
         cond = pred
     else:
-        print(f"[tts] voxcpm2 didn't stop; cut off after {max_patches * per_patch:.1f}s", flush=True)
+        print(f"[tts] voxcpm2 didn't stop; cut off after {limit * PATCH_SECONDS:.1f}s", flush=True)
     if len(patches) > done:
         yield _decode(model, patches, done, last=True)
 

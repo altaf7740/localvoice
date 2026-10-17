@@ -31,6 +31,11 @@ dependencies = [
     # Windows, Linux, Intel Macs  (src/modules/ui/tray.py, src/modules/tts/)
     # ===========================================================================
     "kokoro>=0.9.4; sys_platform != 'darwin' or platform_machine != 'arm64'",  # Kokoro on CUDA/CPU (PyTorch)
+    # ===========================================================================
+    # Windows, Linux  (src/modules/tts/)  -- no torch >= 2.5 for Intel Macs, so they keep Kokoro
+    # ===========================================================================
+    "voxcpm>=2.0.3; sys_platform == 'win32' or sys_platform == 'linux'",  # VoxCPM2 on CUDA (PyTorch)
+    "torch>=2.5; sys_platform == 'win32' or sys_platform == 'linux'",     # direct, so Windows gets the CUDA build below
     "pillow>=10.0; sys_platform != 'darwin'",                                  # Tray icons
     "pyperclip>=1.9; sys_platform != 'darwin'",                                # Clipboard
     "pystray>=0.19.5; sys_platform != 'darwin'",                               # System tray
@@ -47,6 +52,29 @@ eval = [
     # Whisper round-trip intelligibility check (scripts/run_eval.py)
     "mlx-whisper>=0.4.3; sys_platform == 'darwin' and platform_machine == 'arm64'",
 ]
+
+[tool.uv]
+# voxcpm also installs its web demo, training, ASR and denoiser stacks; inference imports none of them
+override-dependencies = [
+    "gradio; sys_platform == 'never'",
+    "spaces; sys_platform == 'never'",
+    "funasr; sys_platform == 'never'",
+    "modelscope; sys_platform == 'never'",
+    "datasets; sys_platform == 'never'",
+    "matplotlib; sys_platform == 'never'",
+    "torchcodec; sys_platform == 'never'",
+    "wetext; sys_platform == 'never'",
+]
+
+# PyPI's Windows torch is CPU-only. CUDA 13.0 builds cover RTX 20-series and newer (incl. 50-series)
+# and need NVIDIA driver 580+. Linux PyPI torch already includes CUDA.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu130", marker = "sys_platform == 'win32'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
 
 [tool.ruff]
 indent-width = 4

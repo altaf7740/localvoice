@@ -1,9 +1,11 @@
 import logging
+import os
 from typing import Iterator
 
 import numpy as np
 
 from ...core.config.settings import APPLE_SILICON, ENGINE_VOICES, STATIC_DIR, Config
+from ...shared.hub import cached
 from .resample import HalfRate
 from .stretch import TimeStretcher
 
@@ -15,6 +17,9 @@ VOXTRAL_CHUNK = 0.5  # seconds of audio per streamed Voxtral chunk; smaller = so
 # espeak-ng warns on every sentence that mixes Devanagari and English. phonemizer resets
 # the level whenever a backend is created, so stop the records reaching the root handler.
 logging.getLogger("phonemizer").propagate = False
+# VoxCPM2's tokenizer loads its config.json as a generic one, and transformers warns that the model
+# types differ on every start. Read when transformers is first imported, i.e. when a model loads.
+os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
 
 _mlx_models: dict = {}
 _voxcpm2_voices: dict = {}  # voice -> reference clip already run through the model (voxcpm2.prepare_voice)
@@ -59,27 +64,42 @@ def _load_mlx(repo: str):
     if repo not in _mlx_models:
         import mlx.core as mx
         from mlx_audio.tts.utils import load
+        from mlx_audio.utils import DEFAULT_ALLOW_PATTERNS
 
         # one engine at a time: VoxCPM2 and Voxtral each need 3–6 GB
         _mlx_models.clear()
         _voxcpm2_voices.clear()
         mx.clear_cache()
-        _mlx_models[repo] = load(repo)
+        _mlx_models[repo] = load(cached(repo, DEFAULT_ALLOW_PATTERNS))  # the files mlx-audio downloads
         print(f"[tts] {repo} on mlx", flush=True)
     return _mlx_models[repo]
 
 
-def _synthesize_voxcpm2(text: str, voice: str, cfg: Config) -> Iterator[np.ndarray]:
-    from . import voxcpm2
+def _voxcpm2_backend(cfg: Config):
+    """(backend module, model): MLX on Apple Silicon, OpenBMB's PyTorch package on NVIDIA GPUs.
+    Both modules offer prepare_voice(model, clip, transcript) and stream(model, text, voice, steps)."""
+    if APPLE_SILICON:
+        from . import voxcpm2 as backend
 
-    model = _load_mlx(cfg.voxcpm2_model)
+        fresh = cfg.voxcpm2_model not in _mlx_models
+        model = _load_mlx(cfg.voxcpm2_model)
+        if fresh:
+            backend.compile_model(model)
+        return backend, model
+    from . import voxcpm2_torch as backend
+
+    return backend, backend.load(cfg.voxcpm2_torch_model)
+
+
+def _synthesize_voxcpm2(text: str, voice: str, cfg: Config) -> Iterator[np.ndarray]:
+    backend, model = _voxcpm2_backend(cfg)
     if voice not in _voxcpm2_voices:
         transcript = (VOICES_DIR / f"{voice}.txt").read_text().strip()
-        _voxcpm2_voices[voice] = voxcpm2.prepare_voice(model, str(VOICES_DIR / f"{voice}.wav"), transcript)
+        _voxcpm2_voices[voice] = backend.prepare_voice(model, str(VOICES_DIR / f"{voice}.wav"), transcript)
     # VoxCPM2 has no speed control either, so stretch it like Voxtral
     stretcher = TimeStretcher(cfg.speed) if cfg.speed != 1.0 else None
-    halve = HalfRate()
-    for chunk in voxcpm2.stream(model, text, _voxcpm2_voices[voice], cfg.voxcpm2_steps):
+    halve = HalfRate()  # 48 kHz -> the player's 24 kHz
+    for chunk in backend.stream(model, text, _voxcpm2_voices[voice], cfg.voxcpm2_steps):
         audio = halve.process(chunk)
         yield stretcher.process(audio) if stretcher else audio
     if stretcher:

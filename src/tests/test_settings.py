@@ -1,5 +1,6 @@
 import argparse
 import json
+import sys
 
 import pytest
 
@@ -69,3 +70,11 @@ def test_steps_flag_applies_to_both_diffusion_engines(tmp_path, monkeypatch):
 def test_run_args_reject_out_of_range(argv):
     with pytest.raises(SystemExit):
         _parse(*argv)
+
+
+def test_cuda_check_skips_macos_and_missing_torch(monkeypatch):
+    monkeypatch.setattr(settings.sys, "platform", "darwin")
+    assert settings._has_cuda() is False
+    monkeypatch.setattr(settings.sys, "platform", "linux")
+    monkeypatch.setitem(sys.modules, "torch", None)  # import torch raises ImportError
+    assert settings._has_cuda() is False
