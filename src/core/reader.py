@@ -42,7 +42,6 @@ class Reader:
 
     def _warmup(self):
         tts.warmup(self.cfg)
-        transliterate.to_devanagari("kal milte hain", self.cfg)
         self.ready = True
         self.on_state(IDLE)
 
@@ -93,7 +92,7 @@ class Reader:
                 if self.cancel.is_set():
                     break
                 t0 = time.time()
-                prepared = transliterate.to_devanagari(sentence, self.cfg)
+                prepared = transliterate.to_devanagari(sentence)
                 t1 = time.time()
                 for audio in tts.synthesize(prepared, self.cfg):
                     if self.cancel.is_set():

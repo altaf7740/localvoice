@@ -15,8 +15,6 @@ class MenuBarApp(rumps.App):
         super().__init__("LocalVoice", title=TITLES[LOADING], quit_button="Quit")
         self.cfg = cfg
         self.reader = Reader(cfg, self.set_state, self.set_last, self.on_empty)
-        self.llm_item = rumps.MenuItem("AI transliteration", callback=self.toggle_llm)
-        self.llm_item.state = cfg.transliterate_llm
         self.voice_menu = rumps.MenuItem("Voice")
         self.voices: dict[str, tuple[str, str]] = {}  # menu title -> (engine, voice)
         for engine, voices in ENGINE_VOICES.items():
@@ -33,7 +31,7 @@ class MenuBarApp(rumps.App):
             self.speed_menu.add(item)
         self.stop_item = rumps.MenuItem("Stop", callback=lambda _: self.reader.stop())
         self.last_item = rumps.MenuItem("Last: —")
-        self.menu = [self.llm_item, self.voice_menu, self.speed_menu, self.stop_item, self.last_item, None]
+        self.menu = [self.voice_menu, self.speed_menu, self.stop_item, self.last_item, None]
         self.reader.start()
 
     def set_state(self, state: str):
@@ -46,11 +44,6 @@ class MenuBarApp(rumps.App):
         # rumps notifications need a bundled app, so flash the icon instead
         self.title = NOTHING_SELECTED
         threading.Timer(1.5, self.set_state, args=(IDLE,)).start()
-
-    def toggle_llm(self, item):
-        item.state = not item.state
-        self.cfg.transliterate_llm = bool(item.state)
-        self.cfg.save("transliterate_llm")
 
     def choose_voice(self, item):
         for other in self.voice_menu.values():

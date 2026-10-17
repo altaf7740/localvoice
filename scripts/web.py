@@ -42,7 +42,7 @@ def to_wav(audio: np.ndarray, sample_rate: int = tts.SAMPLE_RATE) -> bytes:
 
 
 def request_config(base: Config, body: dict) -> Config:
-    """`base` switched to VoxCPM2, with the voice, speed, steps and AI-transliteration choices from the page."""
+    """`base` switched to VoxCPM2, with the voice, speed and steps chosen on the page."""
     cfg = dataclasses.replace(base, tts_engine=ENGINE)
     voices = ENGINE_VOICES[ENGINE]
     cfg.voice = body.get("voice") if body.get("voice") in voices else (cfg.voice if cfg.voice in voices else voices[0])
@@ -50,8 +50,6 @@ def request_config(base: Config, body: dict) -> Config:
         cfg.speed = min(max(float(body["speed"]), 0.5), 2.0)
     if "steps" in body:
         cfg.voxcpm2_steps = min(max(int(body["steps"]), 2), 10)
-    if "transliterate_llm" in body:
-        cfg.transliterate_llm = bool(body["transliterate_llm"])
     return cfg
 
 
@@ -64,19 +62,13 @@ def options(cfg: Config) -> dict:
             "voice": cfg.voice,
             "speed": cfg.speed,
             "steps": cfg.voxcpm2_steps,
-            "transliterate_llm": cfg.transliterate_llm,
         },
     }
 
 
-def prepare(text: str, cfg: Config) -> list[dict]:
-    """Split into sentences and transliterate each, timing the transliteration."""
-    out = []
-    for sentence in split_sentences(text[:MAX_TEXT]):
-        t0 = time.time()
-        prepared = transliterate.to_devanagari(sentence, cfg)
-        out.append({"original": sentence, "prepared": prepared, "prep_seconds": round(time.time() - t0, 3)})
-    return out
+def prepare(text: str) -> list[dict]:
+    """Split into sentences and transliterate each."""
+    return [{"original": s, "prepared": transliterate.to_devanagari(s)} for s in split_sentences(text[:MAX_TEXT])]
 
 
 def speak(text: str, cfg: Config) -> tuple[bytes, dict]:
@@ -129,7 +121,7 @@ def make_handler(base: Config):
             if not text:
                 return self._json({"error": "no text"}, 400)
             if self.path == "/api/prepare":
-                self._json({"sentences": prepare(text, cfg)})
+                self._json({"sentences": prepare(text)})
             elif self.path == "/api/speak":
                 wav, stats = speak(text, cfg)
                 self._send(200, wav, "audio/wav", {"X-Stats": json.dumps(stats)})

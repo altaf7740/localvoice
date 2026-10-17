@@ -17,11 +17,9 @@ def test_to_wav_is_16_bit_mono_and_clips():
 
 def test_request_config_is_always_voxcpm2_and_clamps():
     base = Config(tts_engine="kokoro", voice="hm_omega")
-    cfg = request_config(
-        base, {"engine": "kokoro", "voice": "hm_psi", "speed": 9, "steps": 1, "transliterate_llm": False}
-    )
+    cfg = request_config(base, {"engine": "kokoro", "voice": "hm_psi", "speed": 9, "steps": 1})
     assert (cfg.tts_engine, cfg.voice) == ("voxcpm2", ENGINE_VOICES["voxcpm2"][0])
-    assert (cfg.speed, cfg.voxcpm2_steps, cfg.transliterate_llm) == (2.0, 2, False)
+    assert (cfg.speed, cfg.voxcpm2_steps) == (2.0, 2)
     assert (base.tts_engine, base.speed) == ("kokoro", 1.0)  # the server's config is left alone
 
 

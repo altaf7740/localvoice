@@ -12,11 +12,10 @@ repo's app.
 1. **Grab** — ⌘C / Ctrl+C copies the selection, then the previous clipboard is restored.
 2. **Split** — into sentences, so the first one plays while the rest are synthesised.
 3. **Transliterate** — the engines pronounce Hindi best from Devanagari, so Roman Hindi words are
-   converted ("kal ki meeting" → "कल की meeting") and English words stay in Latin script:
-   - `qwen2.5:7b-instruct` via Ollama, when *AI transliteration* is on and Ollama is running;
-   - then a built-in lexicon (`src/static/lexicon/`) catches common words the model missed, or does
-     the whole job when Ollama is off. Words that are also English ("main", "me", "to") are converted
-     only next to Hindi words, so "tell me kya" keeps "me".
+   converted ("kal ki meeting" → "कल की meeting") by a built-in lexicon (`src/static/lexicon/`) and
+   English words stay in Latin script. Words that are also English ("main", "me", "to") are converted
+   only next to Hindi words, so "tell me kya" keeps "me". Hindi words missing from the lexicon are
+   read as written; add them to `hinglish.tsv`.
 4. **Speak** — streamed to the speakers chunk by chunk, with one of two engines (Voice menu):
    - **[VoxCPM2](https://huggingface.co/openbmb/VoxCPM2)** `indian_male` (default on Apple Silicon and
      NVIDIA GPUs): OpenBMB's 2B model, 8-bit on MLX, or bf16 on CUDA with OpenBMB's `voxcpm` package.
@@ -61,11 +60,11 @@ sentence in 30 the model doesn't stop on its own; it's cut off at 2 s + 0.7 s pe
 | UI | menu bar | system tray | system tray |
 | Hotkey | Right ⌥ | Right Shift | Right Shift |
 
-Common to all: install [uv](https://docs.astral.sh/uv/) and, optionally, [Ollama](https://ollama.com), then
+Common to all: install [uv](https://docs.astral.sh/uv/), then
 
 ```sh
 make install   # uv sync --all-groups
-make model     # download VoxCPM2 + Kokoro and their male voices, ollama pull qwen2.5:7b-instruct
+make model     # download VoxCPM2 + Kokoro and their male voices
 make start
 ```
 
@@ -102,7 +101,7 @@ transcript prepares it again. Only use recordings of yourself or
 someone who agreed to it.
 
 Settings live in `~/.localvoice.json` (voice and speed are also in the menu); e.g.
-`{"speed": 1.25, "hotkey": "cmd_r", "transliterate_llm": false, "output_device": "External Headphones"}`.
+`{"speed": 1.25, "hotkey": "cmd_r", "output_device": "External Headphones"}`.
 
 ### macOS (Apple Silicon)
 

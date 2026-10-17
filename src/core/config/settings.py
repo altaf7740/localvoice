@@ -50,11 +50,6 @@ class Config:
     voxcpm2_steps: int = 4
     kokoro_model: str = "mlx-community/Kokoro-82M-bf16"  # Apple Silicon
     kokoro_torch_model: str = "hexgrad/Kokoro-82M"  # elsewhere (CUDA or CPU)
-    # Both engines pronounce Hindi best from Devanagari. Roman Hindi words go through the
-    # built-in lexicon always, and through the Ollama model first when this is on.
-    transliterate_llm: bool = True
-    transliterate_model: str = "qwen2.5:7b-instruct"
-    ollama_url: str = "http://localhost:11434"
     # pynput key tapped (pressed and released alone) to read the selection or stop.
     # Right Alt is AltGr on many Windows/Linux layouts, so those use Right Shift.
     hotkey: str = "alt_r" if sys.platform == "darwin" else "shift_r"

@@ -30,7 +30,7 @@ def main():
     player.start(cfg.output_device)
     first = None
     for sentence in split_sentences(text):
-        prepared = transliterate.to_devanagari(sentence, cfg)
+        prepared = transliterate.to_devanagari(sentence)
         print(prepared, flush=True)
         for audio in tts.synthesize(prepared, cfg):
             first = first or time.time() - t0

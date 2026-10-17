@@ -30,7 +30,7 @@ def _make(monkeypatch, selection="Kal milte hain. Theek hai?"):
     states, results, empty = [], [], []
     monkeypatch.setattr(reader, "Player", FakePlayer)
     monkeypatch.setattr(reader, "selected_text", lambda: selection)
-    monkeypatch.setattr(reader.transliterate, "to_devanagari", lambda text, cfg: text.upper())
+    monkeypatch.setattr(reader.transliterate, "to_devanagari", lambda text: text.upper())
     monkeypatch.setattr(reader.tts, "synthesize", lambda text, cfg: iter([np.full(3, len(text), dtype=np.float32)]))
     r = Reader(Config(hotkey="alt_r"), states.append, results.append, lambda: empty.append(1))
     r.ready = True

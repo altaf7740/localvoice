@@ -39,10 +39,6 @@ def run(cfg: Config):
     def on_empty():
         icon.notify("Select some text, then tap the hotkey.", "LocalVoice")
 
-    def toggle_llm(_icon, _item):
-        cfg.transliterate_llm = not cfg.transliterate_llm
-        cfg.save("transliterate_llm")
-
     def set_voice(engine: str, voice: str):
         return lambda _icon, _item: reader.set_voice(engine, voice)
 
@@ -59,7 +55,6 @@ def run(cfg: Config):
         ICONS[LOADING],
         TOOLTIPS[LOADING],
         menu=pystray.Menu(
-            pystray.MenuItem("AI transliteration", toggle_llm, checked=lambda _: cfg.transliterate_llm),
             pystray.MenuItem(
                 "Voice",
                 pystray.Menu(

@@ -13,7 +13,6 @@ def test_defaults_when_no_config_file(tmp_path, monkeypatch):
     cfg = Config.load()
     assert cfg.voice in ENGINE_VOICES[cfg.tts_engine]
     assert cfg.speed == 1.0
-    assert cfg.transliterate_llm is True
 
 
 def test_config_file_overrides_and_ignores_unknown_keys(tmp_path, monkeypatch):

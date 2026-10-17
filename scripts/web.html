@@ -65,7 +65,6 @@
       <label>Voice <select id="voice"></select></label>
       <label>Speed <span class="val" id="speedVal"></span><input type="range" id="speed" min="0.5" max="2" step="0.05"></label>
       <label>Steps <span class="val" id="stepsVal"></span><input type="range" id="steps" min="2" max="10" step="1"></label>
-      <label class="check"><input type="checkbox" id="llm"> AI transliteration (Ollama)</label>
       <div class="buttons">
         <button id="stop" disabled>Stop</button>
         <button id="speak" class="primary">Speak</button>
@@ -94,7 +93,7 @@ function setStatus(text, error = false) {
 }
 
 function settings() {
-  return { voice: $("voice").value, speed: +$("speed").value, steps: +$("steps").value, transliterate_llm: $("llm").checked };
+  return { voice: $("voice").value, speed: +$("speed").value, steps: +$("steps").value };
 }
 
 function syncLabels() {
@@ -147,7 +146,6 @@ async function speak() {
       const orig = document.createElement("div"); orig.className = "orig"; orig.textContent = s.original;
       const prep = document.createElement("div"); prep.className = "prep"; prep.textContent = s.prepared;
       const stats = document.createElement("div"); stats.className = "stats";
-      addStat(stats, `transliterate ${s.prep_seconds.toFixed(2)}s`);
       li.append(orig, prep, stats);
       $("results").appendChild(li);
       return { ...s, li, stats };
@@ -204,7 +202,6 @@ async function init() {
   $("voice").value = d.voice;
   $("speed").value = d.speed;
   $("steps").value = d.steps;
-  $("llm").checked = d.transliterate_llm;
   syncLabels();
   for (const id of ["voice", "speed", "steps"]) $(id).addEventListener("input", syncLabels);
   $("speak").onclick = speak;

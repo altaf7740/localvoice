@@ -1,6 +1,5 @@
 .PHONY: help install model start stop status restart say web test lint lint-fix check clean
 
-TRANSLITERATE_MODEL := qwen2.5:7b-instruct
 # Optional per-run overrides: make start SPEED=1.25 STEPS=4 (they beat ~/.localvoice.json)
 RUN_FLAGS = $(if $(SPEED),--speed $(SPEED)) $(if $(STEPS),--steps $(STEPS))
 # this repo's interpreter only: LocalFlow and other projects also run "python -m src.main"
@@ -16,7 +15,7 @@ help:
 	@echo "$(Y)Usage:$(R) make [target]\n"
 	@echo "$(C)Setup:$(R)"
 	@echo "  $(G)install$(R)      Install dependencies (incl. dev tools)"
-	@echo "  $(G)model$(R)        Download VoxCPM2 + Kokoro (male voices) and pull the Ollama model"
+	@echo "  $(G)model$(R)        Download VoxCPM2 + Kokoro (male voices)"
 	@echo ""
 	@echo "$(C)App:$(R)"
 	@echo "  $(G)start$(R)        Run LocalVoice (menu bar on macOS, tray on Windows/Linux) [SPEED=1.25 STEPS=4]"
@@ -40,8 +39,6 @@ install:
 
 model:
 	uv run python -m scripts.download_model
-	@command -v ollama > /dev/null && ollama pull $(TRANSLITERATE_MODEL) \
-		|| echo "Ollama not found: AI transliteration is off until you install it (the lexicon still works)"
 
 start:
 	uv run python -m src.main $(RUN_FLAGS)
