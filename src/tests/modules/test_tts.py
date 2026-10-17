@@ -1,3 +1,8 @@
+import threading
+
+import numpy as np
+import pytest
+
 from src.core.config.settings import Config
 from src.modules.tts import services
 
@@ -44,3 +49,48 @@ def test_dispatches_to_configured_engine(monkeypatch):
     list(services.synthesize("नमस्ते", Config(tts_engine="voxcpm2", voice="indian_male")))
     list(services.synthesize("नमस्ते", Config(tts_engine="kokoro", voice="hm_psi")))
     assert calls == [("voxcpm2", "indian_male"), ("kokoro", "hm_psi")]
+
+
+def test_mlx_work_runs_on_one_thread_whichever_thread_asks(monkeypatch):
+    threads = []
+
+    def fake_engine(text, voice, cfg):
+        threads.append(threading.get_ident())
+        yield np.zeros(2, dtype=np.float32)
+
+    monkeypatch.setattr(services, "APPLE_SILICON", True)
+    monkeypatch.setattr(services, "ENGINE_VOICES", {"voxcpm2": ["indian_male"], "kokoro": ["hm_omega"]})
+    monkeypatch.setattr(services, "_synthesize_voxcpm2", fake_engine)
+    cfg = Config(tts_engine="voxcpm2", voice="indian_male")
+    for _ in range(3):
+        t = threading.Thread(target=lambda: list(services.synthesize("नमस्ते", cfg)))
+        t.start()
+        t.join()
+    assert len(threads) == 3 and len(set(threads)) == 1 and threads[0] != threading.get_ident()
+
+
+def test_mlx_thread_passes_errors_through_and_stops_when_the_caller_does(monkeypatch):
+    made = []
+
+    def endless(text, voice, cfg):
+        while True:
+            made.append(1)
+            yield np.zeros(2, dtype=np.float32)
+
+    def broken(text, voice, cfg):
+        raise RuntimeError("model failed")
+        yield
+
+    monkeypatch.setattr(services, "APPLE_SILICON", True)
+    monkeypatch.setattr(services, "ENGINE_VOICES", {"voxcpm2": ["indian_male"], "kokoro": ["hm_omega"]})
+    cfg = Config(tts_engine="voxcpm2", voice="indian_male")
+    monkeypatch.setattr(services, "_synthesize_voxcpm2", endless)
+    gen = services.synthesize("नमस्ते", cfg)
+    next(gen)
+    gen.close()
+    # the endless generator stopped, or the MLX thread would never be free again
+    services._mlx_thread.submit(lambda: None).result(timeout=5)
+    assert made
+    monkeypatch.setattr(services, "_synthesize_voxcpm2", broken)
+    with pytest.raises(RuntimeError, match="model failed"):
+        list(services.synthesize("नमस्ते", cfg))

@@ -1,6 +1,9 @@
 import hashlib
 import logging
 import os
+import queue
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Iterator
 
@@ -26,6 +29,10 @@ os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
 _mlx_models: dict = {}
 _voxcpm2_voices: dict = {}  # voice -> reference clip already run through the model (voxcpm2.prepare_voice)
 _torch_pipeline = None
+# MLX runs a model only on the thread that loaded it ("There is no Stream(cpu, 1) in current thread"),
+# so all MLX work happens on this one thread, whichever thread asks for speech
+_mlx_thread = ThreadPoolExecutor(max_workers=1, thread_name_prefix="mlx")
+_DONE = object()
 
 
 def synthesize(text: str, cfg: Config) -> Iterator[np.ndarray]:
@@ -34,11 +41,42 @@ def synthesize(text: str, cfg: Config) -> Iterator[np.ndarray]:
         return
     engine, voice = resolve_voice(cfg)
     if engine == "voxcpm2":
-        yield from _synthesize_voxcpm2(text, voice, cfg)
+        chunks = _synthesize_voxcpm2(text, voice, cfg)
     elif APPLE_SILICON:
-        yield from _synthesize_kokoro_mlx(text, voice, cfg)
+        chunks = _synthesize_kokoro_mlx(text, voice, cfg)
     else:
-        yield from _synthesize_kokoro_torch(text, voice, cfg)
+        chunks = _synthesize_kokoro_torch(text, voice, cfg)
+    yield from _on_mlx_thread(chunks) if APPLE_SILICON else chunks
+
+
+def _on_mlx_thread(chunks: Iterator[np.ndarray]) -> Iterator[np.ndarray]:
+    """Run the `chunks` generator on the MLX thread, yielding each chunk here as soon as it's made.
+    If the caller stops early (e.g. the reader was stopped), generation stops after the current chunk."""
+    out: queue.Queue = queue.Queue()
+    stopped = threading.Event()
+
+    def pump():
+        try:
+            for chunk in chunks:
+                if stopped.is_set():
+                    break
+                out.put(chunk)
+        except Exception as e:
+            out.put(e)
+        finally:
+            close = getattr(chunks, "close", None)
+            if close:
+                close()  # here, not later on whatever thread garbage-collects it
+            out.put(_DONE)
+
+    _mlx_thread.submit(pump)
+    try:
+        while (item := out.get()) is not _DONE:
+            if isinstance(item, Exception):
+                raise item
+            yield item
+    finally:
+        stopped.set()
 
 
 def warmup(cfg: Config):
