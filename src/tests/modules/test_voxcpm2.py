@@ -34,3 +34,24 @@ def test_chunked_decode_with_enough_context_matches_whole_decode(monkeypatch):
     parts.append(voxcpm2._decode(model, patches, done, last=True))
     assert [len(p) for p in parts[:-1]] == [3 * PER_PATCH] * 3
     np.testing.assert_allclose(np.concatenate(parts), whole)
+
+
+def test_prepared_voice_is_saved_and_loaded_back(tmp_path, monkeypatch):
+    def layers(base):
+        return [(mx.full((1, 2, 3), base + i), mx.full((1, 2, 3), base - i)) for i in range(2)]
+
+    voice = voxcpm2.Voice(layers(1.0), layers(10.0), mx.ones((1, 4, 4, 2)), mx.zeros((1, 4, 8)))
+    made = []
+    monkeypatch.setattr(voxcpm2, "_prepare_voice", lambda *args: made.append(args) or voice)
+    cache = tmp_path / "voices" / "indian_male-abc.safetensors"
+    assert voxcpm2.prepare_voice("model", "clip.wav", "hello", cache) is voice
+    loaded = voxcpm2.prepare_voice("model", "clip.wav", "hello", cache)
+    assert len(made) == 1  # the second call read the file instead
+    assert [p.name for p in cache.parent.iterdir()] == [cache.name]  # no partial file left behind
+    for got, want in [(loaded.lm_cache, voice.lm_cache), (loaded.res_cache, voice.res_cache)]:
+        assert len(got) == len(want)
+        for (gk, gv), (wk, wv) in zip(got, want):
+            np.testing.assert_array_equal(gk, wk)
+            np.testing.assert_array_equal(gv, wv)
+    np.testing.assert_array_equal(loaded.feats, voice.feats)
+    np.testing.assert_array_equal(loaded.feat_embed, voice.feat_embed)

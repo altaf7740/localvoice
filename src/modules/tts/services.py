@@ -1,5 +1,7 @@
+import hashlib
 import logging
 import os
+from pathlib import Path
 from typing import Iterator
 
 import numpy as np
@@ -11,6 +13,7 @@ from .stretch import TimeStretcher
 
 SAMPLE_RATE = 24000  # Kokoro's; VoxCPM2's 48 kHz is halved to match
 VOICES_DIR = STATIC_DIR / "voices"  # per VoxCPM2 voice: a reference clip (.wav) and what it says (.txt)
+VOICE_CACHE = Path.home() / ".cache" / "localvoice" / "voices"  # those voices prepared by the MLX backend
 KOKORO_LANG = "h"  # Kokoro's Hindi pipeline: espeak-ng "hi" G2P, which also reads Latin-script English
 
 # espeak-ng warns on every sentence that mixes Devanagari and English. phonemizer resets
@@ -68,7 +71,8 @@ def _load_mlx(repo: str):
 
 def _voxcpm2_backend(cfg: Config):
     """(backend module, model): MLX on Apple Silicon, OpenBMB's PyTorch package on NVIDIA GPUs.
-    Both modules offer prepare_voice(model, clip, transcript) and stream(model, text, voice, steps)."""
+    Both modules offer prepare_voice(model, clip, transcript) and stream(model, text, voice, steps);
+    the MLX one's prepare_voice can also save the voice to a file."""
     if APPLE_SILICON:
         from . import voxcpm2 as backend
 
@@ -82,11 +86,22 @@ def _voxcpm2_backend(cfg: Config):
     return backend, backend.load(cfg.voxcpm2_torch_model)
 
 
+def _prepare_voxcpm2_voice(backend, model, voice: str, cfg: Config):
+    clip = VOICES_DIR / f"{voice}.wav"
+    transcript = (VOICES_DIR / f"{voice}.txt").read_text().strip()
+    if not APPLE_SILICON:
+        return backend.prepare_voice(model, str(clip), transcript)
+    # named after the model and what's in the clip and transcript, so editing either or switching
+    # models never reuses a stale voice
+    key = hashlib.sha256(clip.read_bytes() + transcript.encode()).hexdigest()[:16]
+    cache = VOICE_CACHE / cfg.voxcpm2_model.replace("/", "--") / f"{voice}-{key}.safetensors"
+    return backend.prepare_voice(model, str(clip), transcript, cache)
+
+
 def _synthesize_voxcpm2(text: str, voice: str, cfg: Config) -> Iterator[np.ndarray]:
     backend, model = _voxcpm2_backend(cfg)
     if voice not in _voxcpm2_voices:
-        transcript = (VOICES_DIR / f"{voice}.txt").read_text().strip()
-        _voxcpm2_voices[voice] = backend.prepare_voice(model, str(VOICES_DIR / f"{voice}.wav"), transcript)
+        _voxcpm2_voices[voice] = _prepare_voxcpm2_voice(backend, model, voice, cfg)
     # VoxCPM2 has no speed control, so stretch its output (pitch stays the same)
     stretcher = TimeStretcher(cfg.speed) if cfg.speed != 1.0 else None
     halve = HalfRate()  # 48 kHz -> the player's 24 kHz

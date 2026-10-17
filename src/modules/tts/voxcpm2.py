@@ -16,6 +16,7 @@ Two changes from mlx-audio 0.5.9's generate(), which this otherwise mirrors:
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterator
 
 import mlx.core as mx
@@ -47,8 +48,31 @@ def compile_model(model):
     model.audio_vae.decode = mx.compile(model.audio_vae.decode, inputs=[mx.random.state], outputs=[mx.random.state])
 
 
-def prepare_voice(model, clip: str, transcript: str) -> Voice:
-    """Encode the reference clip and run its transcript through both LMs, once per voice."""
+def prepare_voice(model, clip: str, transcript: str, cache: Path | None = None) -> Voice:
+    """Encode the reference clip and run its transcript through both LMs, once per voice.
+    That takes ~1 s, so with `cache` it's saved there and loaded on later starts instead."""
+    if cache and cache.exists():
+        arrays = mx.load(str(cache))
+        return Voice(_layers(arrays, "lm"), _layers(arrays, "res"), arrays["feats"], arrays["feat_embed"])
+    voice = _prepare_voice(model, clip, transcript)
+    if cache:
+        arrays = {"feats": voice.feats, "feat_embed": voice.feat_embed}
+        for lm, layers in (("lm", voice.lm_cache), ("res", voice.res_cache)):
+            arrays[f"{lm}.n"] = mx.array(len(layers))
+            for i, (k, v) in enumerate(layers):
+                arrays[f"{lm}.{i}.k"], arrays[f"{lm}.{i}.v"] = k, v
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        partial = cache.with_suffix(".partial.safetensors")  # renamed once complete, so a crash can't leave half a file
+        mx.save_safetensors(str(partial), arrays)
+        partial.replace(cache)
+    return voice
+
+
+def _layers(arrays: dict, lm: str) -> list:
+    return [(arrays[f"{lm}.{i}.k"], arrays[f"{lm}.{i}.v"]) for i in range(int(arrays[f"{lm}.n"]))]
+
+
+def _prepare_voice(model, clip: str, transcript: str) -> Voice:
     tokens = mx.array(model._tokenize(transcript), dtype=mx.int32)[None]
     enc, lm_cache = model.base_lm(model.base_lm.embed_tokens(tokens) * _scale_emb(model))
     # text positions have no audio features, so the residual LM sees zeros beside the text encoding

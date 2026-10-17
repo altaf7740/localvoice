@@ -15,6 +15,7 @@ from src.shared.text import split_sentences
 
 
 def main():
+    t0 = time.time()
     parser = argparse.ArgumentParser(prog="say", description="Speak text with the configured voice.")
     parser.add_argument("text", nargs="*")
     add_run_args(parser)
@@ -23,10 +24,10 @@ def main():
     if not text:
         parser.error('no text given (make say TEXT="...")')
     cfg = Config.load(**run_overrides(args))
-    tts.warmup(cfg)
+    # no tts.warmup(): it loads the model like the first sentence would, then spends ~1 s
+    # speaking a throwaway word, which here is just a longer wait
     player = Player()
     player.start(cfg.output_device)
-    t0 = time.time()
     first = None
     for sentence in split_sentences(text):
         prepared = transliterate.to_devanagari(sentence, cfg)
@@ -34,7 +35,7 @@ def main():
         for audio in tts.synthesize(prepared, cfg):
             first = first or time.time() - t0
             player.feed(audio)
-    print(f"[first audio after {first:.2f}s]", flush=True)
+    print(f"[first audio {first:.2f}s after launch]", flush=True)
     player.finish()
 
 
