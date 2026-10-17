@@ -109,10 +109,10 @@ def test_set_voice_saves_and_reloads(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "CONFIG_PATH", tmp_path / "localvoice.json")
     r, states, results, empty = _make(monkeypatch)
     warmed = []
-    monkeypatch.setattr(reader.tts, "warmup", lambda cfg: warmed.append((cfg.tts_engine, cfg.voice)))
-    r.set_voice("kokoro", "hm_psi")
+    monkeypatch.setattr(reader.tts, "warmup", lambda cfg: warmed.append(cfg.voice))
+    r.set_voice("other_voice")
     _join_workers()
-    assert warmed == [("kokoro", "hm_psi")]
+    assert warmed == ["other_voice"]
     assert states == [LOADING, IDLE]
     assert r.ready
-    assert (tmp_path / "localvoice.json").read_text().count("hm_psi") == 1
+    assert (tmp_path / "localvoice.json").read_text().count("other_voice") == 1

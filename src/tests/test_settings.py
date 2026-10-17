@@ -5,23 +5,23 @@ import sys
 import pytest
 
 from src.core.config import settings
-from src.core.config.settings import ENGINE_VOICES, Config, add_run_args, run_overrides
+from src.core.config.settings import VOICES, Config, add_run_args, run_overrides
 
 
 def test_defaults_when_no_config_file(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "CONFIG_PATH", tmp_path / "missing.json")
     cfg = Config.load()
-    assert cfg.voice in ENGINE_VOICES[cfg.tts_engine]
+    assert cfg.voice in VOICES
     assert cfg.speed == 1.0
 
 
 def test_config_file_overrides_and_ignores_unknown_keys(tmp_path, monkeypatch):
     path = tmp_path / "localvoice.json"
-    path.write_text(json.dumps({"hotkey": "cmd_r", "voice": "hm_omega", "not_a_field": 1}))
+    path.write_text(json.dumps({"hotkey": "cmd_r", "voice": "other_voice", "not_a_field": 1}))
     monkeypatch.setattr(settings, "CONFIG_PATH", path)
     cfg = Config.load()
     assert cfg.hotkey == "cmd_r"
-    assert cfg.voice == "hm_omega"
+    assert cfg.voice == "other_voice"
     assert not hasattr(cfg, "not_a_field")
 
 
@@ -31,7 +31,7 @@ def test_save_persists_only_given_keys_and_keeps_existing(tmp_path, monkeypatch)
     monkeypatch.setattr(settings, "CONFIG_PATH", path)
     cfg = Config.load()
     cfg.speed = 1.25
-    cfg.voice = "hm_psi"
+    cfg.voice = "other_voice"
     cfg.save("speed")
     assert json.loads(path.read_text()) == {"hotkey": "cmd_r", "speed": 1.25}
 

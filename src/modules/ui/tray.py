@@ -3,7 +3,7 @@
 import pystray
 from PIL import Image, ImageDraw
 
-from ...core.config.settings import ENGINE_NAMES, ENGINE_VOICES, SPEEDS, Config
+from ...core.config.settings import SPEEDS, VOICES, Config
 from ...core.reader import IDLE, LOADING, SPEAKING, WORKING, Reader
 from ..tts.services import resolve_voice
 
@@ -39,8 +39,8 @@ def run(cfg: Config):
     def on_empty():
         icon.notify("Select some text, then tap the hotkey.", "LocalVoice")
 
-    def set_voice(engine: str, voice: str):
-        return lambda _icon, _item: reader.set_voice(engine, voice)
+    def set_voice(voice: str):
+        return lambda _icon, _item: reader.set_voice(voice)
 
     def set_field(key: str, value):
         def choose(_icon, _item):
@@ -59,14 +59,8 @@ def run(cfg: Config):
                 "Voice",
                 pystray.Menu(
                     *(
-                        pystray.MenuItem(
-                            f"{ENGINE_NAMES[e]} · {v}",
-                            set_voice(e, v),
-                            checked=lambda _, e=e, v=v: resolve_voice(cfg) == (e, v),
-                            radio=True,
-                        )
-                        for e, voices in ENGINE_VOICES.items()
-                        for v in voices
+                        pystray.MenuItem(v, set_voice(v), checked=lambda _, v=v: resolve_voice(cfg) == v, radio=True)
+                        for v in VOICES
                     )
                 ),
             ),

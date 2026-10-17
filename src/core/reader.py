@@ -45,11 +45,11 @@ class Reader:
         self.ready = True
         self.on_state(IDLE)
 
-    def set_voice(self, engine: str, voice: str):
-        """Switch engine/voice and load it now, so the next tap doesn't wait for the model."""
+    def set_voice(self, voice: str):
+        """Switch voice and prepare it now, so the next tap doesn't wait for it."""
         self.stop()
-        self.cfg.tts_engine, self.cfg.voice = engine, voice
-        self.cfg.save("tts_engine", "voice")
+        self.cfg.voice = voice
+        self.cfg.save("voice")
         self.ready = False
         self.on_state(LOADING)
         threading.Thread(target=self._warmup, daemon=True).start()

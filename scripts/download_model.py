@@ -1,4 +1,4 @@
-"""Download VoxCPM2 (Apple Silicon or an NVIDIA GPU), Kokoro-82M and their male voices into the HuggingFace cache.
+"""Download VoxCPM2 and prepare its voices.
 
 Usage: make model
    or: uv run python -m scripts.download_model
@@ -6,16 +6,16 @@ Usage: make model
 
 from dataclasses import replace
 
-from src.core.config.settings import ENGINE_VOICES, Config
+from src.core.config.settings import VOICES, Config, exit_if_unsupported
 from src.modules.tts import services as tts
 
 
 def main():
+    exit_if_unsupported()
     cfg = Config.load()
-    for engine, voices in ENGINE_VOICES.items():
-        for voice in voices:
-            tts.warmup(replace(cfg, tts_engine=engine, voice=voice))
-            print(f"[model] {engine} {voice} ready", flush=True)
+    for voice in VOICES:
+        tts.warmup(replace(cfg, voice=voice))
+        print(f"[model] {voice} ready", flush=True)
 
 
 if __name__ == "__main__":

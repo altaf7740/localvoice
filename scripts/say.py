@@ -7,7 +7,7 @@ Usage: make say TEXT="Kal ki meeting mein timeline discuss karni hai" [SPEED=1.2
 import argparse
 import time
 
-from src.core.config.settings import Config, add_run_args, run_overrides
+from src.core.config.settings import Config, add_run_args, exit_if_unsupported, run_overrides
 from src.modules.transliterate import services as transliterate
 from src.modules.tts import services as tts
 from src.shared.audio import Player
@@ -23,6 +23,7 @@ def main():
     text = " ".join(args.text).strip()
     if not text:
         parser.error('no text given (make say TEXT="...")')
+    exit_if_unsupported()
     cfg = Config.load(**run_overrides(args))
     # no tts.warmup(): it loads the model like the first sentence would, then spends ~1 s
     # speaking a throwaway word, which here is just a longer wait

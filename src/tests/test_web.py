@@ -4,7 +4,7 @@ import numpy as np
 
 from scripts import web
 from scripts.web import options, request_config, to_pcm16
-from src.core.config.settings import ENGINE_VOICES, Config
+from src.core.config.settings import VOICES, Config
 
 
 def test_to_pcm16_is_little_endian_16_bit_and_clips():
@@ -37,15 +37,15 @@ def test_closing_speak_early_stops_synthesis_and_frees_the_lock(monkeypatch):
     assert closed and not web._tts_lock.locked()
 
 
-def test_request_config_is_always_voxcpm2_and_clamps():
-    base = Config(tts_engine="kokoro", voice="hm_omega")
-    cfg = request_config(base, {"engine": "kokoro", "voice": "hm_psi", "speed": 9, "steps": 1})
-    assert (cfg.tts_engine, cfg.voice) == ("voxcpm2", ENGINE_VOICES["voxcpm2"][0])
+def test_request_config_clamps_and_falls_back_to_a_known_voice():
+    base = Config(voice="missing")
+    cfg = request_config(base, {"voice": "also_missing", "speed": 9, "steps": 1})
+    assert cfg.voice == VOICES[0]
     assert (cfg.speed, cfg.voxcpm2_steps) == (2.0, 2)
-    assert (base.tts_engine, base.speed) == ("kokoro", 1.0)  # the server's config is left alone
+    assert (base.voice, base.speed) == ("missing", 1.0)  # the server's config is left alone
 
 
-def test_options_offer_only_voxcpm2_voices():
-    opts = options(Config(tts_engine="kokoro", voice="hm_omega"))
-    assert opts["voices"] == ENGINE_VOICES["voxcpm2"]
-    assert opts["defaults"]["voice"] == ENGINE_VOICES["voxcpm2"][0]
+def test_options_list_the_voices():
+    opts = options(Config(voice="missing"))
+    assert opts["voices"] == VOICES
+    assert opts["defaults"]["voice"] == VOICES[0]

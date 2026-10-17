@@ -24,32 +24,23 @@ def _has_cuda() -> bool:
 
 CUDA = _has_cuda()
 
-# Male voices per engine (Kokoro's hf_alpha / hf_beta are left out). VoxCPM2's indian_male is
-# cloned from static/voices/indian_male.wav. VoxCPM2 runs on MLX (Apple Silicon) or an NVIDIA GPU
-# (it's far too slow for a CPU); elsewhere only Kokoro.
-ENGINE_VOICES = {"voxcpm2": ["indian_male"], "kokoro": ["hm_omega", "hm_psi"]}
-if not (APPLE_SILICON or CUDA):
-    del ENGINE_VOICES["voxcpm2"]
-ENGINE_NAMES = {"voxcpm2": "VoxCPM2", "kokoro": "Kokoro"}  # for menus
+# VoxCPM2 runs on MLX (Apple Silicon) or an NVIDIA GPU; it's far too slow for a CPU
+SUPPORTED = APPLE_SILICON or CUDA
+# each is cloned from static/voices/<name>.wav
+VOICES = ["indian_male"]
 SPEEDS = [0.8, 0.9, 1.0, 1.1, 1.25, 1.5]
 
 
 @dataclass
 class Config:
-    # "voxcpm2": deep Indian male voice, Apache 2.0, ~0.8 s to first audio; only just keeps up
-    #   with 1× playback on an M1 Pro, ~3× faster on an RTX 4090.
-    # "kokoro": flatter but ~0.2 s to first audio, Apache 2.0, runs everywhere.
-    tts_engine: str = "voxcpm2" if APPLE_SILICON or CUDA else "kokoro"
-    voice: str = "indian_male" if APPLE_SILICON or CUDA else "hm_omega"
-    # Kokoro speeds up natively; VoxCPM2 output is time-stretched (pitch unchanged)
+    voice: str = "indian_male"
+    # VoxCPM2 has no speed control, so its output is time-stretched (pitch unchanged)
     speed: float = 1.0
     voxcpm2_model: str = "mlx-community/VoxCPM2-8bit"  # Apple Silicon
     voxcpm2_torch_model: str = "openbmb/VoxCPM2"  # NVIDIA GPUs (bf16, ~8 GB of VRAM)
     # diffusion steps per 0.16 s patch (model default 10). 4 sounds as clean as 10 in Whisper
     # round-trips and is the most an M1 Pro can run at 1× speed; 3 garbles words.
     voxcpm2_steps: int = 4
-    kokoro_model: str = "mlx-community/Kokoro-82M-bf16"  # Apple Silicon
-    kokoro_torch_model: str = "hexgrad/Kokoro-82M"  # elsewhere (CUDA or CPU)
     # pynput key tapped (pressed and released alone) to read the selection or stop.
     # Right Alt is AltGr on many Windows/Linux layouts, so those use Right Shift.
     hotkey: str = "alt_r" if sys.platform == "darwin" else "shift_r"
@@ -70,6 +61,11 @@ class Config:
         for key in keys:
             data[key] = getattr(self, key)
         CONFIG_PATH.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+
+def exit_if_unsupported():
+    if not SUPPORTED:
+        raise SystemExit("LocalVoice needs an Apple Silicon Mac or an NVIDIA GPU: VoxCPM2 is far too slow on a CPU")
 
 
 def add_run_args(parser: argparse.ArgumentParser):

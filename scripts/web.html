@@ -7,12 +7,12 @@
 <style>
   :root {
     --bg: #f6f5f2; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6a66; --line: #e3e1db;
-    --accent: #c2410c; --accent-text: #ffffff; --soft: #fdf1e9; --playing: #fff4d6;
+    --accent: #c2410c; --accent-text: #ffffff; --playing: #fff4d6;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #161614; --panel: #1f1f1c; --text: #ecebe6; --muted: #9a9890; --line: #33322e;
-      --accent: #f97316; --accent-text: #161614; --soft: #2a1f18; --playing: #2e2a1a;
+      --accent: #f97316; --accent-text: #161614; --playing: #2e2a1a;
     }
   }
   * { box-sizing: border-box; }
@@ -27,7 +27,6 @@
   }
   .controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: end; margin-top: 14px; }
   label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
-  label.check { flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
   select, input[type=range] { font: inherit; }
   select { padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
   .val { color: var(--text); font-variant-numeric: tabular-nums; }

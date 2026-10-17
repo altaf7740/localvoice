@@ -1,6 +1,7 @@
 # LocalVoice
 
-Fully local text-to-speech for macOS, Windows and Linux that reads Hinglish aloud.
+Fully local text-to-speech that reads Hinglish aloud, on Apple Silicon Macs and on Windows or Linux
+with an NVIDIA GPU.
 Select text in any app, tap the hotkey (**Right ⌥** on macOS, **Right Shift** on Windows/Linux), and it speaks.
 Tap again to stop. The companion to [LocalFlow](https://github.com/altaf7740/localflow), which goes the other
 way (speak Hinglish, get text). The two use different hotkeys (Left ⌥ hold vs Right ⌥ tap; Right Ctrl vs Right
@@ -11,41 +12,34 @@ repo's app.
 
 1. **Grab** — ⌘C / Ctrl+C copies the selection, then the previous clipboard is restored.
 2. **Split** — into sentences, so the first one plays while the rest are synthesised.
-3. **Transliterate** — the engines pronounce Hindi best from Devanagari, so Roman Hindi words are
+3. **Transliterate** — VoxCPM2 pronounces Hindi best from Devanagari, so Roman Hindi words are
    converted ("kal ki meeting" → "कल की meeting") by a built-in lexicon (`src/static/lexicon/`) and
    English words stay in Latin script. Words that are also English ("main", "me", "to") are converted
    only next to Hindi words, so "tell me kya" keeps "me". Hindi words missing from the lexicon are
    read as written; add them to `hinglish.tsv`.
-4. **Speak** — streamed to the speakers chunk by chunk, with one of two engines (Voice menu):
-   - **[VoxCPM2](https://huggingface.co/openbmb/VoxCPM2)** `indian_male` (default on Apple Silicon and
-     NVIDIA GPUs): OpenBMB's 2B model, 8-bit on MLX, or bf16 on CUDA with OpenBMB's `voxcpm` package.
-     A deep, calm Indian male voice, cloned from `src/static/voices/indian_male.wav` (see [Voices](#voices)).
-   - **[Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M)** `hm_omega` / `hm_psi`: tiny and instant but
-     flat; MLX on Apple Silicon, PyTorch (CUDA or CPU) elsewhere.
-
-   Speed (default 1.0×) is native in Kokoro; VoxCPM2 output is time-stretched with WSOLA, so pitch
-   stays the same.
+4. **Speak** — streamed to the speakers chunk by chunk with
+   **[VoxCPM2](https://huggingface.co/openbmb/VoxCPM2)**, OpenBMB's 2B model: 8-bit on MLX, or bf16 on
+   CUDA with OpenBMB's `voxcpm` package. The `indian_male` voice is a deep, calm Indian male, cloned
+   from `src/static/voices/indian_male.wav` (see [Voices](#voices)). Speed (default 1.0×) is applied by
+   time-stretching with WSOLA, so pitch stays the same.
 
 Nothing leaves the machine.
 
-## Engines (M1 Pro)
+## Performance (M1 Pro)
 
-| | VoxCPM2 `indian_male` | Kokoro `hm_omega` |
-|---|---|---|
-| Voice | deep (~100 Hz), calm Indian male | flat Indian male |
-| Pronunciation | natural, handles code-mixing | flat; garbles some English ("server restart") |
-| First audio | ~0.8 s | ~0.2 s |
-| Real-time factor | 0.84 (only just keeps up at 1×) | 0.07 |
-| Memory | ~4.3 GB (3 GB of weights) | < 1 GB |
-| Download | 3 GB | 0.3 GB |
-| Weights licence | Apache 2.0 | Apache 2.0 |
+| | VoxCPM2 `indian_male` |
+|---|---|
+| First audio | ~0.3 s |
+| Real-time factor | ~0.6 (generates 1 s of speech in 0.6 s) |
+| Memory | ~4.3 GB (3 GB of weights) |
+| Download | 3 GB |
+| Weights licence | Apache 2.0 |
 
-Only one engine is loaded at a time; switching voices frees the previous model. On an NVIDIA GPU
-OpenBMB reports VoxCPM2 at RTF ~0.30 on an RTX 4090 (bf16, ~8 GB of VRAM); their package streams it
+On an NVIDIA GPU OpenBMB reports VoxCPM2 at RTF ~0.30 on an RTX 4090 (bf16, ~8 GB of VRAM); their package streams it
 0.16 s at a time.
 
 VoxCPM2 runs 4 diffusion steps per 0.16 s patch instead of its default 10 (`voxcpm2_steps`): Whisper
-transcripts were as clean as at 10, and 4 is the most an M1 Pro can run at 1× (3 garbles words).
+transcripts were as clean as at 10, and fewer (3) garbles words.
 mlx-audio's VoxCPM2 only returns a sentence once it's fully generated, so `src/modules/tts/voxcpm2.py`
 re-implements its generation loop to decode as it goes (0.3 s of audio after the first 2 patches,
 growing to ~1 s chunks), and reads the voice's transcript into the model once instead of per
@@ -57,7 +51,6 @@ sentence in 30 the model doesn't stop on its own; it's cut off at 2 s + 0.7 s pe
 | | macOS (Apple Silicon) | Windows | Linux |
 |---|---|---|---|
 | VoxCPM2 | MLX (GPU) | NVIDIA GPU (PyTorch CUDA) | NVIDIA GPU (PyTorch CUDA) |
-| Kokoro | MLX (GPU) | PyTorch (CUDA or CPU) | PyTorch (CUDA or CPU) |
 | UI | menu bar | system tray | system tray |
 | Hotkey | Right ⌥ | Right Shift | Right Shift |
 
@@ -65,7 +58,7 @@ Common to all: install [uv](https://docs.astral.sh/uv/), then
 
 ```sh
 make install   # uv sync --all-groups
-make model     # download VoxCPM2 + Kokoro and their male voices
+make model     # download VoxCPM2 (3 GB on a Mac) and prepare its voice
 make start
 ```
 
@@ -85,9 +78,9 @@ make start SPEED=1.25
 make say SPEED=1.5 STEPS=4 TEXT="Main abhi busy hoon, baad mein call karta hoon."
 ```
 
-The menu's Speed submenu changes it while running and saves it. VoxCPM2 only just keeps up at 1× on an
-M1 Pro, so faster speeds make it pause between chunks (the terminal prints `[audio] N gap(s)`); pick
-Kokoro for fast listening.
+The menu's Speed submenu changes it while running and saves it. Generation runs only ~1.7× faster
+than playback on an M1 Pro, so at high speeds or with more steps it can pause between chunks (the
+terminal prints `[audio] N gap(s)`).
 
 ### Voices
 
@@ -96,7 +89,7 @@ and a `.txt` with exactly what the clip says, in `src/static/voices/`. `indian_m
 generated by VoxCPM2 from the description "A calm, confident middle-aged Indian man with a deep
 voice, speaking clearly and professionally like a news anchor", so no real person's voice is cloned.
 To add a voice, drop in `<name>.wav` (5–10 s, clean speech) and `<name>.txt`, and add `<name>` to
-`ENGINE_VOICES["voxcpm2"]` in `src/core/config/settings.py`. On a Mac, each voice is prepared once
+`VOICES` in `src/core/config/settings.py`. On a Mac, each voice is prepared once
 (~1 s) and saved in `~/.cache/localvoice/voices`, so later starts skip it; editing the clip or its
 transcript prepares it again. Only use recordings of yourself or
 someone who agreed to it.
@@ -108,27 +101,21 @@ Settings live in `~/.localvoice.json` (voice and speed are also in the menu); e.
 
 Grant your terminal **Accessibility** and **Input Monitoring** in
 System Settings → Privacy & Security (for the hotkey and ⌘C), then restart the app.
-espeak-ng is bundled; no Homebrew install needed.
+Intel Macs aren't supported: there's no MLX for them, nor PyTorch 2.5+, which VoxCPM2 needs.
 
 ### Windows
 
 - VoxCPM2 needs an NVIDIA GPU, RTX 20-series or newer with ~8 GB of VRAM, and driver 580+:
-  `make install` fetches PyTorch's CUDA 13.0 build (a few GB). It's far too slow on a CPU, so without
-  a GPU only Kokoro (~330 MB, faster than real time on CPU) is offered. Models download on first
-  launch (VoxCPM2: ~5 GB).
+  `make install` fetches PyTorch's CUDA 13.0 build (a few GB). It's far too slow on a CPU, so
+  LocalVoice won't start without one. `make model` downloads VoxCPM2 (~5 GB).
 - Triton isn't available on Windows, so VoxCPM2 runs without `torch.compile` there (it prints a
   warning); Linux gets the compiled, faster path.
 - Reading from apps running as Administrator requires running LocalVoice as Administrator.
 
-### Intel Macs
-
-Kokoro only: there's no PyTorch 2.5+ for Intel Macs, which VoxCPM2 needs, and no MLX.
-
 ### Linux
 
 - **X11 only.** Wayland blocks global hotkeys and simulated keystrokes; log in to an X11 session.
-- VoxCPM2 needs an NVIDIA GPU as on Windows (PyPI's Linux PyTorch already includes CUDA); without one,
-  Kokoro is used.
+- VoxCPM2 needs an NVIDIA GPU as on Windows (PyPI's Linux PyTorch already includes CUDA).
 - System packages (Debian/Ubuntu): `sudo apt install libportaudio2 xclip gir1.2-ayatanaappindicator3-0.1`
 - GNOME needs the *AppIndicator* extension to show the tray icon.
 - Terminals copy with Ctrl+Shift+C, so selections in a terminal aren't read; other apps work.

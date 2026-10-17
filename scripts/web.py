@@ -16,16 +16,15 @@ from typing import Iterator
 
 import numpy as np
 
-from src.core.config.settings import ENGINE_VOICES, SPEEDS, Config, add_run_args, run_overrides
+from src.core.config.settings import VOICES, Config, add_run_args, exit_if_unsupported, run_overrides
 from src.modules.transliterate import services as transliterate
 from src.modules.tts import services as tts
 from src.shared.text import split_sentences
 
 PAGE = Path(__file__).with_name("web.html")
 MAX_TEXT = 5000  # characters per request
-ENGINE = "voxcpm2"  # the only engine this UI offers
 
-# one synthesis at a time: the engines keep a single loaded model and aren't thread-safe
+# one synthesis at a time: there's a single loaded model and it isn't thread-safe
 _tts_lock = threading.Lock()
 
 
@@ -35,10 +34,9 @@ def to_pcm16(audio: np.ndarray) -> str:
 
 
 def request_config(base: Config, body: dict) -> Config:
-    """`base` switched to VoxCPM2, with the voice, speed and steps chosen on the page."""
-    cfg = dataclasses.replace(base, tts_engine=ENGINE)
-    voices = ENGINE_VOICES[ENGINE]
-    cfg.voice = body.get("voice") if body.get("voice") in voices else (cfg.voice if cfg.voice in voices else voices[0])
+    """`base` with the voice, speed and steps chosen on the page."""
+    cfg = dataclasses.replace(base)
+    cfg.voice = body["voice"] if body.get("voice") in VOICES else tts.resolve_voice(cfg)
     if "speed" in body:
         cfg.speed = min(max(float(body["speed"]), 0.5), 2.0)
     if "steps" in body:
@@ -49,9 +47,8 @@ def request_config(base: Config, body: dict) -> Config:
 def options(cfg: Config) -> dict:
     cfg = request_config(cfg, {})
     return {
-        "voices": ENGINE_VOICES[ENGINE],
+        "voices": VOICES,
         "sample_rate": tts.SAMPLE_RATE,
-        "speeds": SPEEDS,
         "defaults": {
             "voice": cfg.voice,
             "speed": cfg.speed,
@@ -160,8 +157,7 @@ def main():
     parser.add_argument("--port", type=int, default=8765)
     add_run_args(parser)
     args = parser.parse_args()
-    if ENGINE not in ENGINE_VOICES:
-        parser.exit(1, "VoxCPM2 needs Apple Silicon or an NVIDIA GPU, and this machine has neither\n")
+    exit_if_unsupported()
     cfg = Config.load(**run_overrides(args))
     # localhost only: nothing leaves the machine
     try:

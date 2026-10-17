@@ -4,7 +4,7 @@ import threading
 import numpy as np
 import sounddevice as sd
 
-SAMPLE_RATE = 24000  # Kokoro's output rate
+SAMPLE_RATE = 24000  # what the TTS yields (VoxCPM2's 48 kHz, halved)
 BLOCK = SAMPLE_RATE // 10  # write 100 ms at a time so stop() is near-instant
 
 

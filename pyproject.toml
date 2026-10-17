@@ -15,10 +15,7 @@ dependencies = [
     # Apple Silicon  (src/modules/tts/)
     # ===========================================================================
     # pinned: src/modules/tts/voxcpm2.py re-implements VoxCPM2's generation loop on mlx-audio internals
-    "mlx-audio==0.5.9; sys_platform == 'darwin' and platform_machine == 'arm64'",        # VoxCPM2, Kokoro on Apple GPU
-    "misaki>=0.9.4; sys_platform == 'darwin' and platform_machine == 'arm64'",           # Kokoro G2P
-    "espeakng-loader>=0.2.4; sys_platform == 'darwin' and platform_machine == 'arm64'",  # Bundled espeak-ng (Hindi G2P)
-    "phonemizer-fork>=3.3.2; sys_platform == 'darwin' and platform_machine == 'arm64'",  # espeak-ng bindings
+    "mlx-audio==0.5.9; sys_platform == 'darwin' and platform_machine == 'arm64'",  # VoxCPM2 on Apple GPU
     # ===========================================================================
     # macOS  (src/modules/ui/menubar.py, src/shared/selection.py)
     # ===========================================================================
@@ -26,17 +23,13 @@ dependencies = [
     "pyobjc-framework-quartz>=12.2.2; sys_platform == 'darwin'",  # ⌘C key events
     "rumps>=0.4.0; sys_platform == 'darwin'",                     # Menu-bar app
     # ===========================================================================
-    # Windows, Linux, Intel Macs  (src/modules/ui/tray.py, src/modules/tts/)
-    # ===========================================================================
-    "kokoro>=0.9.4; sys_platform != 'darwin' or platform_machine != 'arm64'",  # Kokoro on CUDA/CPU (PyTorch)
-    # ===========================================================================
-    # Windows, Linux  (src/modules/tts/)  -- no torch >= 2.5 for Intel Macs, so they keep Kokoro
+    # Windows, Linux with an NVIDIA GPU  (src/modules/tts/, src/modules/ui/tray.py)
     # ===========================================================================
     "voxcpm>=2.0.3; sys_platform == 'win32' or sys_platform == 'linux'",  # VoxCPM2 on CUDA (PyTorch)
     "torch>=2.5; sys_platform == 'win32' or sys_platform == 'linux'",     # direct, so Windows gets the CUDA build below
-    "pillow>=10.0; sys_platform != 'darwin'",                                  # Tray icons
-    "pyperclip>=1.9; sys_platform != 'darwin'",                                # Clipboard
-    "pystray>=0.19.5; sys_platform != 'darwin'",                               # System tray
+    "pillow>=10.0; sys_platform != 'darwin'",                              # Tray icons
+    "pyperclip>=1.9; sys_platform != 'darwin'",                            # Clipboard
+    "pystray>=0.19.5; sys_platform != 'darwin'",                           # System tray
 ]
 
 [dependency-groups]

@@ -3,13 +3,14 @@
 import argparse
 import sys
 
-from .core.config.settings import Config, add_run_args, run_overrides
+from .core.config.settings import Config, add_run_args, exit_if_unsupported, run_overrides
 
 
 def main(argv: list[str] | None = None):
     parser = argparse.ArgumentParser(prog="localvoice", description="Select text, tap the hotkey, hear it.")
     add_run_args(parser)
     args = parser.parse_args(argv)
+    exit_if_unsupported()
     cfg = Config.load(**run_overrides(args))
     if sys.platform == "darwin":
         from .modules.ui.menubar import run
