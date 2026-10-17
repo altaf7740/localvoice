@@ -36,7 +36,7 @@ Nothing leaves the machine.
 | Pronunciation | natural, handles code-mixing | flat; garbles some English ("server restart") |
 | First audio | ~0.8 s | ~0.2 s |
 | Real-time factor | 0.84 (only just keeps up at 1×) | 0.07 |
-| Memory | 6 GB | < 1 GB |
+| Memory | ~4.3 GB (3 GB of weights) | < 1 GB |
 | Download | 3 GB | 0.3 GB |
 | Weights licence | Apache 2.0 | Apache 2.0 |
 

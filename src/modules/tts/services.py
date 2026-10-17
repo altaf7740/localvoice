@@ -18,6 +18,9 @@ SAMPLE_RATE = 24000  # Kokoro's; VoxCPM2's 48 kHz is halved to match
 VOICES_DIR = STATIC_DIR / "voices"  # per VoxCPM2 voice: a reference clip (.wav) and what it says (.txt)
 VOICE_CACHE = Path.home() / ".cache" / "localvoice" / "voices"  # those voices prepared by the MLX backend
 KOKORO_LANG = "h"  # Kokoro's Hindi pipeline: espeak-ng "hi" G2P, which also reads Latin-script English
+# MLX keeps freed GPU buffers for reuse and never hands them back, so VoxCPM2's footprint grew from
+# 3 GB of weights to 9+ GB. Capped at 1 GB it stays ~4.3 GB at the same speed (0.5 GB is slower).
+MLX_CACHE_LIMIT = 1 << 30
 
 # espeak-ng warns on every sentence that mixes Devanagari and English. phonemizer resets
 # the level whenever a backend is created, so stop the records reaching the root handler.
@@ -99,10 +102,11 @@ def _load_mlx(repo: str):
         from mlx_audio.tts.utils import load
         from mlx_audio.utils import DEFAULT_ALLOW_PATTERNS
 
-        # one engine at a time: VoxCPM2 needs 6 GB
+        # one engine at a time: VoxCPM2 needs 3 GB of weights
         _mlx_models.clear()
         _voxcpm2_voices.clear()
         mx.clear_cache()
+        mx.set_cache_limit(MLX_CACHE_LIMIT)
         _mlx_models[repo] = load(cached(repo, DEFAULT_ALLOW_PATTERNS))  # the files mlx-audio downloads
         print(f"[tts] {repo} on mlx", flush=True)
     return _mlx_models[repo]
