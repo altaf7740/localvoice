@@ -69,7 +69,10 @@ make model     # download VoxCPM2 + Kokoro and their male voices, ollama pull qw
 make start
 ```
 
-Try it without the hotkey: `make say TEXT="Kal ki meeting mein timeline discuss karni hai"`.
+Try it without the hotkey: `make say TEXT="Kal ki meeting mein timeline discuss karni hai"`,
+or `make web` and open http://localhost:8765 to type text, try VoxCPM2's speed and steps, and see each
+sentence's transliteration and timings (first chunk, synthesis time, real-time factor). It only listens
+on localhost.
 Run `make` to list every target.
 
 ### Speed

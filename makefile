@@ -1,4 +1,4 @@
-.PHONY: help install model start stop status restart say test lint lint-fix check clean
+.PHONY: help install model start stop status restart say web test lint lint-fix check clean
 
 TRANSLITERATE_MODEL := qwen2.5:7b-instruct
 # Optional per-run overrides: make start SPEED=1.25 STEPS=4 (they beat ~/.localvoice.json)
@@ -24,6 +24,7 @@ help:
 	@echo "  $(G)status$(R)       Check if LocalVoice is running"
 	@echo "  $(G)restart$(R)      Stop, then start"
 	@echo "  $(G)say$(R)          Speak TEXT=\"...\" from the terminal [SPEED=1.25 STEPS=4]"
+	@echo "  $(G)web$(R)          Test VoxCPM2 in the browser at http://localhost:8765 [SPEED=1.25 STEPS=4]"
 	@echo ""
 	@echo "$(C)Testing & Code Quality:$(R)"
 	@echo "  $(G)test$(R)         Run tests"
@@ -55,6 +56,9 @@ restart: stop start
 
 say:
 	uv run python -m scripts.say $(RUN_FLAGS) "$(TEXT)"
+
+web:
+	uv run python -m scripts.web $(RUN_FLAGS)
 
 test:
 	uv run pytest

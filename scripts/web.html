@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LocalVoice</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6a66; --line: #e3e1db;
+    --accent: #c2410c; --accent-text: #ffffff; --soft: #fdf1e9; --playing: #fff4d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161614; --panel: #1f1f1c; --text: #ecebe6; --muted: #9a9890; --line: #33322e;
+      --accent: #f97316; --accent-text: #161614; --soft: #2a1f18; --playing: #2e2a1a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  textarea {
+    width: 100%; min-height: 140px; resize: vertical; padding: 12px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit;
+  }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: end; margin-top: 14px; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  label.check { flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
+  select, input[type=range] { font: inherit; }
+  select { padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+  .val { color: var(--text); font-variant-numeric: tabular-nums; }
+  .buttons { display: flex; gap: 8px; margin-left: auto; }
+  button {
+    font: inherit; font-weight: 600; padding: 8px 18px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--panel); color: var(--text);
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .samples { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+  .samples button { font-weight: 400; font-size: 13px; padding: 4px 10px; border-radius: 999px; }
+  #status { margin: 18px 0 8px; color: var(--muted); min-height: 1.5em; }
+  #status.error { color: #dc2626; }
+  ol { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+  li { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  li.playing { background: var(--playing); }
+  .orig { color: var(--muted); font-size: 13px; }
+  .prep { font-size: 17px; margin: 2px 0 6px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; align-items: center; }
+  .stats a { color: var(--accent); }
+  .stats button { font-size: 12px; padding: 2px 10px; font-weight: 500; }
+  .slow { color: #dc2626; }
+</style>
+</head>
+<body>
+<main>
+  <h1>LocalVoice</h1>
+  <p class="sub">Type Hinglish, hear it. Runs on this machine: transliteration, then VoxCPM2.</p>
+
+  <div class="panel">
+    <div class="samples" id="samples"></div>
+    <textarea id="text" placeholder="Kal ki meeting mein timeline discuss karni hai.">Kal ki meeting mein timeline discuss karni hai. Main abhi busy hoon, baad mein call karta hoon.</textarea>
+    <div class="controls">
+      <label>Voice <select id="voice"></select></label>
+      <label>Speed <span class="val" id="speedVal"></span><input type="range" id="speed" min="0.5" max="2" step="0.05"></label>
+      <label>Steps <span class="val" id="stepsVal"></span><input type="range" id="steps" min="2" max="10" step="1"></label>
+      <label class="check"><input type="checkbox" id="llm"> AI transliteration (Ollama)</label>
+      <div class="buttons">
+        <button id="stop" disabled>Stop</button>
+        <button id="speak" class="primary">Speak</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="status"></div>
+  <ol id="results"></ol>
+</main>
+
+<script>
+const SAMPLES = [
+  "Kal ki meeting mein timeline discuss karni hai.",
+  "Main abhi busy hoon, baad mein call karta hoon.",
+  "Server restart karna padega, deployment fail ho gaya.",
+  "Tell me kya plan hai weekend ka?",
+];
+const $ = (id) => document.getElementById(id);
+let run = 0;          // bumped on every Speak/Stop so stale work drops out
+let current = null;   // the Audio element playing now
+
+function setStatus(text, error = false) {
+  $("status").textContent = text;
+  $("status").className = error ? "error" : "";
+}
+
+function settings() {
+  return { voice: $("voice").value, speed: +$("speed").value, steps: +$("steps").value, transliterate_llm: $("llm").checked };
+}
+
+function syncLabels() {
+  $("speedVal").textContent = (+$("speed").value).toFixed(2) + "×";
+  $("stepsVal").textContent = $("steps").value;
+}
+
+async function post(path, body) {
+  const resp = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || resp.statusText);
+  return resp;
+}
+
+function play(url, li, myRun) {
+  return new Promise((resolve) => {
+    if (myRun !== run) return resolve();
+    current = new Audio(url);
+    li.classList.add("playing");
+    const done = () => { li.classList.remove("playing"); resolve(); };
+    current.onended = done;
+    current.onerror = done;
+    current.onpause = done;
+    current.play().catch(done);
+  });
+}
+
+function addStat(el, text, cls) {
+  const span = document.createElement("span");
+  span.textContent = text;
+  if (cls) span.className = cls;
+  el.appendChild(span);
+}
+
+async function speak() {
+  const text = $("text").value.trim();
+  if (!text) return;
+  stop();
+  const myRun = ++run;
+  const opts = settings();
+  const started = performance.now();
+  $("results").replaceChildren();
+  $("speak").disabled = true;
+  $("stop").disabled = false;
+  setStatus("Transliterating…");
+  try {
+    const { sentences } = await (await post("/api/prepare", { ...opts, text })).json();
+    if (myRun !== run) return;
+    const items = sentences.map((s) => {
+      const li = document.createElement("li");
+      const orig = document.createElement("div"); orig.className = "orig"; orig.textContent = s.original;
+      const prep = document.createElement("div"); prep.className = "prep"; prep.textContent = s.prepared;
+      const stats = document.createElement("div"); stats.className = "stats";
+      addStat(stats, `transliterate ${s.prep_seconds.toFixed(2)}s`);
+      li.append(orig, prep, stats);
+      $("results").appendChild(li);
+      return { ...s, li, stats };
+    });
+
+    // synthesise sentence by sentence; each plays as soon as the one before it finishes
+    let playing = Promise.resolve();
+    let firstAudio = null;
+    for (const [i, item] of items.entries()) {
+      if (myRun !== run) return;
+      setStatus(`Synthesising ${i + 1}/${items.length}…`);
+      const resp = await post("/api/speak", { ...opts, text: item.prepared });
+      const stats = JSON.parse(resp.headers.get("X-Stats") || "{}");
+      const url = URL.createObjectURL(await resp.blob());
+      if (myRun !== run) return;
+      firstAudio ??= (performance.now() - started) / 1000;
+      addStat(item.stats, `first chunk ${stats.first_chunk.toFixed(2)}s`);
+      addStat(item.stats, `synth ${stats.synth.toFixed(2)}s`);
+      addStat(item.stats, `audio ${stats.audio.toFixed(2)}s`);
+      if (stats.rtf != null) addStat(item.stats, `RTF ${stats.rtf.toFixed(2)}`, stats.rtf > 1 ? "slow" : "");
+      const replay = document.createElement("button"); replay.textContent = "▶ Replay";
+      replay.onclick = () => { stop(); run++; play(url, item.li, run); };
+      const dl = document.createElement("a"); dl.href = url; dl.download = `localvoice-${i + 1}.wav`; dl.textContent = "Download";
+      item.stats.append(replay, dl);
+      playing = playing.then(() => play(url, item.li, myRun));
+    }
+    setStatus(`First audio after ${firstAudio.toFixed(2)}s. Playing…`);
+    await playing;
+    if (myRun === run) setStatus(`Done. First audio after ${firstAudio.toFixed(2)}s, total ${((performance.now() - started) / 1000).toFixed(2)}s.`);
+  } catch (e) {
+    if (myRun === run) setStatus(`Error: ${e.message}. Is the server still running?`, true);
+  } finally {
+    if (myRun === run) { $("speak").disabled = false; $("stop").disabled = true; }
+  }
+}
+
+function stop() {
+  run++;
+  if (current) { current.pause(); current = null; }
+  $("speak").disabled = false;
+  $("stop").disabled = true;
+}
+
+async function init() {
+  for (const s of SAMPLES) {
+    const b = document.createElement("button");
+    b.textContent = s;
+    b.onclick = () => { $("text").value = s; };
+    $("samples").appendChild(b);
+  }
+  const opts = await (await fetch("/api/options")).json();
+  for (const v of opts.voices) $("voice").appendChild(new Option(v, v));
+  const d = opts.defaults;
+  $("voice").value = d.voice;
+  $("speed").value = d.speed;
+  $("steps").value = d.steps;
+  $("llm").checked = d.transliterate_llm;
+  syncLabels();
+  for (const id of ["voice", "speed", "steps"]) $(id).addEventListener("input", syncLabels);
+  $("speak").onclick = speak;
+  $("stop").onclick = stop;
+  $("text").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) speak(); });
+  setStatus("Ready. ⌘/Ctrl+Enter to speak. The first request loads the model, so it takes longer.");
+}
+
+init().catch((e) => setStatus(`Couldn't load options: ${e.message}`, true));
+</script>
+</body>
+</html>
