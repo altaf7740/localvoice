@@ -15,14 +15,14 @@ resolution-markers = [
 
 [manifest]
 overrides = [
-    { name = "datasets", marker = "sys_platform == 'never'" },
-    { name = "funasr", marker = "sys_platform == 'never'" },
-    { name = "gradio", marker = "sys_platform == 'never'" },
-    { name = "matplotlib", marker = "sys_platform == 'never'" },
-    { name = "modelscope", marker = "sys_platform == 'never'" },
-    { name = "spaces", marker = "sys_platform == 'never'" },
-    { name = "torchcodec", marker = "sys_platform == 'never'" },
-    { name = "wetext", marker = "sys_platform == 'never'" },
+    { name = "datasets", marker = "sys_platform == 'never'", specifier = ">=0" },
+    { name = "funasr", marker = "sys_platform == 'never'", specifier = ">=0" },
+    { name = "gradio", marker = "sys_platform == 'never'", specifier = ">=0" },
+    { name = "matplotlib", marker = "sys_platform == 'never'", specifier = ">=0" },
+    { name = "modelscope", marker = "sys_platform == 'never'", specifier = ">=0" },
+    { name = "spaces", marker = "sys_platform == 'never'", specifier = ">=0" },
+    { name = "torchcodec", marker = "sys_platform == 'never'", specifier = ">=0" },
+    { name = "wetext", marker = "sys_platform == 'never'", specifier = ">=0" },
 ]
 
 [[package]]

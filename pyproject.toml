@@ -51,14 +51,14 @@ dev = [
 [tool.uv]
 # voxcpm also installs its web demo, training, ASR and denoiser stacks; inference imports none of them
 override-dependencies = [
-    "gradio; sys_platform == 'never'",
-    "spaces; sys_platform == 'never'",
-    "funasr; sys_platform == 'never'",
-    "modelscope; sys_platform == 'never'",
-    "datasets; sys_platform == 'never'",
-    "matplotlib; sys_platform == 'never'",
-    "torchcodec; sys_platform == 'never'",
-    "wetext; sys_platform == 'never'",
+    "gradio>=0; sys_platform == 'never'",
+    "spaces>=0; sys_platform == 'never'",
+    "funasr>=0; sys_platform == 'never'",
+    "modelscope>=0; sys_platform == 'never'",
+    "datasets>=0; sys_platform == 'never'",
+    "matplotlib>=0; sys_platform == 'never'",
+    "torchcodec>=0; sys_platform == 'never'",
+    "wetext>=0; sys_platform == 'never'",
 ]
 
 # PyPI's Windows torch is CPU-only. CUDA 13.0 builds cover RTX 20-series and newer (incl. 50-series)
