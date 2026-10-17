@@ -100,6 +100,15 @@ def speak(text: str, cfg: Config) -> tuple[bytes, dict]:
     return to_wav(audio), stats
 
 
+def warmup(cfg: Config):
+    """Load the model and voice at startup, so the first Speak doesn't wait ~4 s for them.
+    Requests that arrive meanwhile queue on the lock instead of loading it a second time."""
+    t0 = time.time()
+    with _tts_lock:
+        tts.warmup(cfg)
+    print(f"[web] ready in {time.time() - t0:.1f}s", flush=True)
+
+
 def make_handler(base: Config):
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
@@ -159,6 +168,7 @@ def main():
     except OSError as e:
         parser.exit(1, f"can't listen on port {args.port} ({e.strerror}): is the UI already running? Try --port\n")
     print(f"LocalVoice test UI on http://localhost:{args.port} (Ctrl+C to quit)", flush=True)
+    threading.Thread(target=warmup, args=(request_config(cfg, {}),), daemon=True).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
