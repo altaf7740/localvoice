@@ -26,6 +26,25 @@ that repo's app.
 
 Nothing leaves the machine.
 
+## Languages
+
+LocalVoice reads Hinglish: English, Hindi in Devanagari, and Roman Hindi. VoxCPM2 itself speaks 30
+languages, per its [model card](https://huggingface.co/openbmb/VoxCPM2), with no language tag needed:
+
+Arabic, Burmese, Chinese, Danish, Dutch, English, Finnish, French, German, Greek, Hebrew, Hindi,
+Indonesian, Italian, Japanese, Khmer, Korean, Lao, Malay, Norwegian, Polish, Portuguese, Russian,
+Spanish, Swahili, Swedish, Tagalog, Thai, Turkish, Vietnamese
+
+plus nine Chinese dialects (Sichuanese, Cantonese, Wu, Northeastern, Henan, Shaanxi, Shandong,
+Tianjin, Hokkien). Quality varies with each language's training data.
+
+The rest of the pipeline assumes Hinglish, so other languages need some changes first:
+transliteration would turn Latin words that are also in the Hinglish lexicon ("ja", "wo", "ab") into
+Devanagari; sentences only split on `. ! ? ।` followed by a space, so Chinese and Japanese text isn't
+split; the runaway cut-off counts space-separated words, so long sentences in Chinese, Japanese, Thai,
+Lao, Khmer and Burmese would be cut short; and `indian_male` is a Hinglish clip, so other languages
+would likely get its accent; add a native-speaker voice for each (see [Voices](#voices)).
+
 ## Performance (M1 Pro)
 
 | | VoxCPM2 `indian_male` |
