@@ -116,6 +116,10 @@ def make_handler(base: Config):
             if self.path == "/api/prepare":
                 self._json({"sentences": prepare(text)})
             elif self.path == "/api/speak":
+                if body.get("prepare"):  # raw text from another app: strip Markdown, convert Roman Hindi
+                    text = transliterate.speakable(text, bool(body.get("ends_sentence", True)), cfg)
+                    if not text:
+                        return self._json({"error": "nothing to say"}, 400)
                 self._stream(speak(text, cfg))
             else:
                 self._send(404, b"not found", "text/plain")

@@ -6,9 +6,9 @@ from pynput import keyboard
 
 from ..modules.transliterate import services as transliterate
 from ..modules.tts import services as tts
-from ..shared.audio import Player
+from ..shared.audio import Player, pause
 from ..shared.selection import selected_text
-from ..shared.text import split_sentences
+from ..shared.text import split_chunks, strip_markup
 from .config.settings import Config
 
 LOADING, IDLE, WORKING, SPEAKING = "loading", "idle", "working", "speaking"
@@ -107,18 +107,22 @@ class Reader:
             self.on_state(LOADING)  # woken from an idle unload
         self.player.start(self.cfg.output_device)
         try:
-            for i, sentence in enumerate(split_sentences(text)):
+            chunks = split_chunks(strip_markup(text) if self.cfg.strip_markup else text)
+            speakable = transliterate.prepare_chunks(chunks, self.cfg)
+            for i, (_, ends_sentence) in enumerate(chunks):
                 if self.cancel.is_set():
                     break
                 t0 = time.time()
-                prepared = transliterate.to_devanagari(sentence)
+                prepared = next(speakable)
                 t1 = time.time()
                 for audio in tts.synthesize(prepared, self.cfg):
                     if self.cancel.is_set():
                         break
                     self.player.feed(audio)
                     self.on_state(SPEAKING)
-                print(f"[prep {t1 - t0:.2f}s] {prepared}\n[tts {time.time() - t1:.2f}s] sentence {i + 1}", flush=True)
+                if i < len(chunks) - 1 and not self.cancel.is_set():
+                    self.player.feed(pause(ends_sentence, self.cfg.speed))
+                print(f"[prep {t1 - t0:.2f}s] {prepared}\n[tts {time.time() - t1:.2f}s] chunk {i + 1}", flush=True)
         finally:
             self.player.finish()
             self.last_active = time.time()

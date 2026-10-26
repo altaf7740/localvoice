@@ -10,8 +10,8 @@ import time
 from src.core.config.settings import Config, add_run_args, exit_if_unsupported, run_overrides
 from src.modules.transliterate import services as transliterate
 from src.modules.tts import services as tts
-from src.shared.audio import Player
-from src.shared.text import split_sentences
+from src.shared.audio import Player, pause
+from src.shared.text import split_chunks, strip_markup
 
 
 def main():
@@ -30,12 +30,16 @@ def main():
     player = Player()
     player.start(cfg.output_device)
     first = None
-    for sentence in split_sentences(text):
-        prepared = transliterate.to_devanagari(sentence)
+    chunks = split_chunks(strip_markup(text) if cfg.strip_markup else text)
+    speakable = transliterate.prepare_chunks(chunks, cfg)
+    for i, (_, ends_sentence) in enumerate(chunks):
+        prepared = next(speakable)
         print(prepared, flush=True)
         for audio in tts.synthesize(prepared, cfg):
             first = first or time.time() - t0
             player.feed(audio)
+        if i < len(chunks) - 1:
+            player.feed(pause(ends_sentence, cfg.speed))
     print(f"[first audio {first:.2f}s after launch]", flush=True)
     player.finish()
 

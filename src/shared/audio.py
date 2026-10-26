@@ -6,6 +6,11 @@ import sounddevice as sd
 
 SAMPLE_RATE = 24000  # what the TTS yields (VoxCPM2's 48 kHz, halved)
 BLOCK = SAMPLE_RATE // 10  # write 100 ms at a time so stop() is near-instant
+PAUSES = {True: 0.28, False: 0.10}  # seconds of silence after a sentence end / a mid-sentence cut
+
+
+def pause(ends_sentence: bool, speed: float = 1.0) -> np.ndarray:
+    return np.zeros(int(SAMPLE_RATE * PAUSES[ends_sentence] / speed), dtype=np.float32)
 
 
 class Player:

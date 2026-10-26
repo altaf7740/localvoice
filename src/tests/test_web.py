@@ -49,3 +49,35 @@ def test_options_list_the_voices():
     opts = options(Config(voice="missing"))
     assert opts["voices"] == VOICES
     assert opts["defaults"]["voice"] == VOICES[0]
+
+
+def test_speak_with_prepare_cleans_text_from_another_app(monkeypatch):
+    import json
+    import threading
+    import urllib.error
+    import urllib.request
+    from http.server import ThreadingHTTPServer
+
+    spoken = []
+    monkeypatch.setattr(
+        web.tts, "synthesize", lambda text, cfg: spoken.append(text) or iter([np.zeros(2400, dtype=np.float32)])
+    )
+    server = ThreadingHTTPServer(("127.0.0.1", 0), web.make_handler(Config()))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+
+    def post(body):
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{server.server_address[1]}/api/speak", json.dumps(body).encode()
+        )
+        return urllib.request.urlopen(request).read()
+
+    try:
+        post({"text": "**Kal** ki meeting 😊", "prepare": True, "ends_sentence": False})
+        post({"text": "kal ki meeting"})  # without prepare the text goes through untouched
+        assert spoken == ["कल की meeting,", "kal ki meeting"]
+        try:
+            post({"text": "😊", "prepare": True})
+        except urllib.error.HTTPError as e:
+            assert e.code == 400
+    finally:
+        server.shutdown()

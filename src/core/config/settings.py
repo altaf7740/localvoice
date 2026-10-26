@@ -48,6 +48,14 @@ class Config:
     # free the model after this many idle minutes (~2 GB on a Mac); the next tap reloads it, ~3 s.
     # 0 keeps it loaded.
     idle_unload_minutes: float = 10.0
+    # strip Markdown marks and emoji before speaking
+    strip_markup: bool = True
+    # ask an Ollama model to convert the Roman Hindi words the lexicon misses, in text that mixes
+    # Hindi and English. Adds its run time to every such chunk, and falls back to the lexicon's
+    # output if Ollama is down or its answer looks wrong.
+    llm_prep: bool = False
+    llm_prep_model: str = "gemma2:9b"
+    ollama_url: str = "http://localhost:11434"
     # output device name; empty = system default
     output_device: str = ""
 

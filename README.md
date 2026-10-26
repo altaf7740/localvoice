@@ -11,7 +11,9 @@ that repo's app.
 ## Pipeline
 
 1. **Grab** — ⌘C / Ctrl+C copies the selection, then the previous clipboard is restored.
-2. **Split** — into sentences, so the first one plays while the rest are synthesised.
+2. **Split** — into phrases, so the first one plays while the rest are synthesised: at sentence ends,
+   at commas, and before connectors like "lekin" and "but" (not "aur" or "and", which join words inside a
+   phrase). A cut mid-sentence is spoken with a trailing comma and a shorter pause than a sentence end.
 3. **Transliterate** — VoxCPM2 pronounces Hindi best from Devanagari, so Roman Hindi words are
    converted ("kal ki meeting" → "कल की meeting") by a built-in lexicon (`src/static/lexicon/`) and
    English words stay in Latin script. Words that are also English ("main", "me", "to") are converted

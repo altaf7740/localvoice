@@ -57,7 +57,9 @@ def test_tap_reads_selection_sentence_by_sentence(monkeypatch):
     _tap(r)
     _join_workers()
     assert results == ["Kal milte hain. Theek hai?"]
-    assert [a[0] for a in r.player.fed] == [len("Kal milte hain."), len("Theek hai?")]
+    sound, silence = r.player.fed[0::2], r.player.fed[1::2]
+    assert [a[0] for a in sound] == [len("Kal milte hain."), len("Theek hai?")]
+    assert len(silence) == 1 and not silence[0].any()  # a pause between the two, none after the last
     assert states == [WORKING, SPEAKING, SPEAKING, IDLE]
     assert empty == []
 
@@ -145,3 +147,17 @@ def test_tap_after_an_unload_shows_loading_until_audio_starts(monkeypatch):
     _tap(r)
     _join_workers()
     assert states[:3] == [WORKING, LOADING, SPEAKING]
+
+
+def test_cut_mid_sentence_is_spoken_with_a_comma_and_a_short_pause(monkeypatch):
+    r, *_ = _make(
+        monkeypatch, selection="Meeting kal subah ko office mein hogi lekin location abhi tak confirm nahi hui hai."
+    )
+    spoken = []
+    monkeypatch.setattr(
+        reader.tts, "synthesize", lambda text, cfg: spoken.append(text) or iter([np.ones(3, dtype=np.float32)])
+    )
+    _tap(r)
+    _join_workers()
+    assert spoken == ["MEETING KAL SUBAH KO OFFICE MEIN HOGI,", "LEKIN LOCATION ABHI TAK CONFIRM NAHI HUI HAI."]
+    assert len(r.player.fed[1]) == len(reader.pause(False))

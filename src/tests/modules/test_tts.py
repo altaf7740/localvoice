@@ -69,7 +69,11 @@ def test_mlx_thread_passes_errors_through_and_stops_when_the_caller_does(monkeyp
 
 def test_unload_frees_the_model_and_voices_but_not_while_a_request_runs(monkeypatch):
     monkeypatch.setattr(services, "APPLE_SILICON", False)
-    monkeypatch.setitem(__import__("sys").modules, "torch", type("T", (), {"cuda": type("C", (), {"empty_cache": staticmethod(lambda: None)})})())
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "torch",
+        type("T", (), {"cuda": type("C", (), {"empty_cache": staticmethod(lambda: None)})})(),
+    )
     monkeypatch.setattr(services, "_backend", ("backend", "model"))
     monkeypatch.setitem(services._voices, "indian_male", "voice")
     assert services.loaded()
