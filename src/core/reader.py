@@ -12,6 +12,7 @@ from ..shared.text import split_sentences
 from .config.settings import Config
 
 LOADING, IDLE, WORKING, SPEAKING = "loading", "idle", "working", "speaking"
+IDLE_CHECK_SECONDS = 30
 
 
 class Reader:
@@ -34,16 +35,32 @@ class Reader:
         self.tapping = False
         self.cancel = threading.Event()
         self.worker: threading.Thread | None = None
+        self.last_active = time.time()
 
     def start(self):
         self.on_state(LOADING)
         threading.Thread(target=self._warmup, daemon=True).start()
         keyboard.Listener(on_press=self._on_press, on_release=self._on_release).start()
+        threading.Thread(target=self._unload_when_idle, daemon=True).start()
 
     def _warmup(self):
         tts.warmup(self.cfg)
+        self.last_active = time.time()
         self.ready = True
         self.on_state(IDLE)
+
+    def _unload_when_idle(self):
+        while True:
+            time.sleep(IDLE_CHECK_SECONDS)
+            self.unload_if_idle()
+
+    def unload_if_idle(self) -> bool:
+        """Free the model once nothing has been read for `idle_unload_minutes`; speak() reloads it."""
+        limit = self.cfg.idle_unload_minutes * 60
+        busy = self.worker is not None and self.worker.is_alive()
+        if limit <= 0 or not self.ready or busy or time.time() - self.last_active < limit:
+            return False
+        return tts.unload()
 
     def set_voice(self, voice: str):
         """Switch voice and prepare it now, so the next tap doesn't wait for it."""
@@ -86,6 +103,8 @@ class Reader:
     def speak(self, text: str):
         self.on_state(WORKING)
         self.on_result(text)
+        if not tts.loaded():
+            self.on_state(LOADING)  # woken from an idle unload
         self.player.start(self.cfg.output_device)
         try:
             for i, sentence in enumerate(split_sentences(text)):
@@ -102,4 +121,5 @@ class Reader:
                 print(f"[prep {t1 - t0:.2f}s] {prepared}\n[tts {time.time() - t1:.2f}s] sentence {i + 1}", flush=True)
         finally:
             self.player.finish()
+            self.last_active = time.time()
             self.on_state(IDLE)

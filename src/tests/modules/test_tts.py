@@ -65,3 +65,16 @@ def test_mlx_thread_passes_errors_through_and_stops_when_the_caller_does(monkeyp
     monkeypatch.setattr(services, "_synthesize", broken)
     with pytest.raises(RuntimeError, match="model failed"):
         list(services.synthesize("नमस्ते", cfg))
+
+
+def test_unload_frees_the_model_and_voices_but_not_while_a_request_runs(monkeypatch):
+    monkeypatch.setattr(services, "APPLE_SILICON", False)
+    monkeypatch.setitem(__import__("sys").modules, "torch", type("T", (), {"cuda": type("C", (), {"empty_cache": staticmethod(lambda: None)})})())
+    monkeypatch.setattr(services, "_backend", ("backend", "model"))
+    monkeypatch.setitem(services._voices, "indian_male", "voice")
+    assert services.loaded()
+    with services._use:
+        assert services.unload() is False and services.loaded()
+    assert services.unload() is True
+    assert not services.loaded() and services._voices == {}
+    assert services.unload() is False  # already unloaded

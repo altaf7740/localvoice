@@ -45,6 +45,9 @@ class Config:
     # pynput key tapped (pressed and released alone) to read the selection or stop.
     # Right Alt is AltGr on many Windows/Linux layouts, so those use Right Shift.
     hotkey: str = "alt_r" if sys.platform == "darwin" else "shift_r"
+    # free the model after this many idle minutes (~2 GB on a Mac); the next tap reloads it, ~3 s.
+    # 0 keeps it loaded.
+    idle_unload_minutes: float = 10.0
     # output device name; empty = system default
     output_device: str = ""
 

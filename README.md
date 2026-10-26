@@ -121,6 +121,10 @@ delays each sentence's first audio (a 7 s clip costs ~0.1 s). On a Mac, each voi
 (~1 s) and saved in `~/.cache/localvoice/voices`, so later starts skip it; editing the clip or its
 transcript prepares it again. Only use recordings of yourself or someone who agreed to it.
 
+After 10 idle minutes LocalVoice frees the model, taking a Mac from ~2.3 GB to ~0.2 GB; the next tap
+shows "…" in the menu bar while it reloads (~1.5 s with the files cached, longer if macOS has dropped
+them). Set `"idle_unload_minutes"` to another number of minutes, or `0` to keep the model loaded.
+
 Settings live in `~/.localvoice.json` (voice and speed are also in the menu); e.g.
 `{"speed": 1.25, "hotkey": "cmd_r", "output_device": "External Headphones"}`. Setting
 `"voxcpm2_model": "mlx-community/VoxCPM2-8bit"` uses the 8-bit checkpoint instead (~1 GB more memory).

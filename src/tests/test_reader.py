@@ -32,6 +32,7 @@ def _make(monkeypatch, selection="Kal milte hain. Theek hai?"):
     monkeypatch.setattr(reader, "selected_text", lambda: selection)
     monkeypatch.setattr(reader.transliterate, "to_devanagari", lambda text: text.upper())
     monkeypatch.setattr(reader.tts, "synthesize", lambda text, cfg: iter([np.full(3, len(text), dtype=np.float32)]))
+    monkeypatch.setattr(reader.tts, "loaded", lambda: True)
     r = Reader(Config(hotkey="alt_r"), states.append, results.append, lambda: empty.append(1))
     r.ready = True
     return r, states, results, empty
@@ -116,3 +117,31 @@ def test_set_voice_saves_and_reloads(monkeypatch, tmp_path):
     assert states == [LOADING, IDLE]
     assert r.ready
     assert (tmp_path / "localvoice.json").read_text().count("other_voice") == 1
+
+
+def test_idle_model_is_unloaded_only_after_the_limit_and_when_not_reading(monkeypatch):
+    r, *_ = _make(monkeypatch)
+    unloads = []
+    monkeypatch.setattr(reader.tts, "unload", lambda: unloads.append(1) or True)
+    r.cfg.idle_unload_minutes = 10
+    assert not r.unload_if_idle()  # just used
+    r.last_active -= 601
+    r.cfg.idle_unload_minutes = 0
+    assert not r.unload_if_idle()  # 0 keeps it loaded
+    r.cfg.idle_unload_minutes = 10
+    r.ready = False
+    assert not r.unload_if_idle()  # still warming up
+    r.ready = True
+    r.worker = threading.Thread(target=threading.Event().wait, daemon=True)
+    r.worker.start()
+    assert not r.unload_if_idle()  # reading
+    r.worker = None
+    assert r.unload_if_idle() and unloads == [1]
+
+
+def test_tap_after_an_unload_shows_loading_until_audio_starts(monkeypatch):
+    r, states, *_ = _make(monkeypatch)
+    monkeypatch.setattr(reader.tts, "loaded", lambda: False)
+    _tap(r)
+    _join_workers()
+    assert states[:3] == [WORKING, LOADING, SPEAKING]

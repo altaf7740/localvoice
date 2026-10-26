@@ -1,3 +1,4 @@
+import gc
 import hashlib
 import os
 import queue
@@ -28,6 +29,7 @@ _backend = None  # (backend module, model) once loaded
 _voices: dict = {}  # voice -> reference clip already run through the model (prepare_voice)
 # MLX runs a model only on the thread that loaded it ("There is no Stream(cpu, 1) in current thread"),
 # so all MLX work happens on this one thread, whichever thread asks for speech
+_use = threading.Lock()  # held while a request runs, so the model is never unloaded under it
 _mlx_thread = ThreadPoolExecutor(max_workers=1, thread_name_prefix="mlx")
 _DONE = object()
 
@@ -75,6 +77,41 @@ def warmup(cfg: Config):
     VoxCPM2 to decode every chunk size once, as compiling each costs ~0.2 s the first time."""
     for _ in synthesize("नमस्ते, आज का दिन बहुत अच्छा है।", cfg):
         pass
+
+
+def loaded() -> bool:
+    """Whether the model is in memory (the next request loads it again if not)."""
+    return _backend is not None
+
+
+def unload() -> bool:
+    """Free the model and its voices, e.g. after a long idle spell; the next request reloads them.
+    Returns False if nothing was loaded or a request is running. On a Mac this runs on the MLX
+    thread, the only one that may touch the model."""
+
+    def drop() -> bool:
+        global _backend
+        if not _use.acquire(blocking=False):
+            return False
+        try:
+            if _backend is None:
+                return False
+            _backend = None
+            _voices.clear()
+        finally:
+            _use.release()
+        gc.collect()  # the compiled MLX functions and the model refer to each other
+        if APPLE_SILICON:
+            import mlx.core as mx
+
+            mx.clear_cache()  # hand back the buffers MLX keeps for reuse
+        else:
+            import torch
+
+            torch.cuda.empty_cache()
+        return True
+
+    return _mlx_thread.submit(drop).result() if APPLE_SILICON else drop()
 
 
 def resolve_voice(cfg: Config) -> str:
@@ -125,14 +162,15 @@ def _prepare_voice(backend, model, voice: str, cfg: Config):
 
 
 def _synthesize(text: str, voice: str, cfg: Config) -> Iterator[np.ndarray]:
-    backend, model = _load(cfg)
-    if voice not in _voices:
-        _voices[voice] = _prepare_voice(backend, model, voice, cfg)
-    # VoxCPM2 has no speed control, so stretch its output (pitch stays the same)
-    stretcher = TimeStretcher(cfg.speed) if cfg.speed != 1.0 else None
-    halve = HalfRate()  # 48 kHz -> the player's 24 kHz
-    for chunk in backend.stream(model, text, _voices[voice], cfg.voxcpm2_steps):
-        audio = halve.process(chunk)
-        yield stretcher.process(audio) if stretcher else audio
-    if stretcher:
-        yield stretcher.flush()
+    with _use:
+        backend, model = _load(cfg)
+        if voice not in _voices:
+            _voices[voice] = _prepare_voice(backend, model, voice, cfg)
+        # VoxCPM2 has no speed control, so stretch its output (pitch stays the same)
+        stretcher = TimeStretcher(cfg.speed) if cfg.speed != 1.0 else None
+        halve = HalfRate()  # 48 kHz -> the player's 24 kHz
+        for chunk in backend.stream(model, text, _voices[voice], cfg.voxcpm2_steps):
+            audio = halve.process(chunk)
+            yield stretcher.process(audio) if stretcher else audio
+        if stretcher:
+            yield stretcher.flush()
